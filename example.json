@@ -1,0 +1,131 @@
+{
+	"title" : "Theme-1",
+	"size" : {
+		"width"	: 165,
+		"height" : 32
+	},
+    
+	"subview" : [{	"type" : "rectangle",
+     
+            			"size" : {
+                			"width" : 165,
+                			"height" : 32
+            			},
+     
+            			"origin" : {
+                			"x" : 0,
+            			   	"y" : 0
+            			},
+         
+            			"corner-radius" : 4.0,
+            			"color" : "#168fdd",
+         
+            			"inner-shadow" : {
+                			"offset" : {
+                    				"x" : 0,
+                    				"y" : 1
+         		       		},
+         
+                			"blend-mode" : "softlight",
+                			"alpha" : 0.60,
+                			"color" : "#FFF"
+            			},
+         
+            			"drop-shadow" : {
+                			"offset" : {
+                    				"x" : 0,
+                    				"y" : 1
+                			},
+         
+                			"alpha" : 0.5,
+                			"color" : "#000",
+                			"blur" : 2
+            			},
+         
+            			"gradient-fill" : {
+                			"gradient-colors" : [ "#28a2e3", "#0f77cd", "#0d69b8" ],
+                			"gradient-positions" : [ 0.0, 0.875, 1.0 ]
+            			},
+         
+            			"outer-stroke" : {
+                			"width" : 1,
+                			"color" : "#28476a"
+            			},
+         
+            			"subview" : [
+            				{	"type" : "circle",
+                       
+                    				"origin" : {
+                       					"x" : 11,
+                       					"y" : 14
+                    				},
+                       
+                    				"size" : {
+                       					"width" : 8,
+                       					"height" : 8
+                    				},
+                       
+                    				"color" : "#b5eb0f",
+                       
+                    				"outer-stroke" : {
+                       					"width" : 0.5,
+                       					"color" : "#809a05"
+                    				},
+                       
+                    				"drop-shadow" : {
+                       					"offset" : {
+                          					"x" : 0,
+                          					"y" : 0
+                        				},
+                       
+                        				"blur" : 8,
+                     	  				"color" : "#bced11"
+                    				},
+                       
+                    				"inner-shadow" : {
+                    					"color" : "#FFF",
+                       					"alpha" : 0.53,
+                       
+                       					"offset" : {
+                          					"x" : 0,
+                          					"y" : 1
+                       					}
+                    				},
+                       
+                    				"gradient-fill" : {
+                       					"gradient-colors" : [ "#FFF", "#000" ],
+                       					"gradient-positions" : [ 0.0, 1.0 ],
+                       					"blend-mode" : "overlay",
+                       					"alpha" : 0.55
+                    				}
+                			},
+                       
+                			{ 	"type" : "label",
+                       
+                    				"content-string" : "Core Graphics rocks!",
+                    				"font-size" : 13,
+                    				"font-name" : "HelveticaNeue-Bold",
+                       
+                    				"drop-shadow" : {
+                       					"offset" : {
+                          					"x" : 0,
+                          					"y" : 1
+                      					},
+                       
+                      					"color" : "#154e88"
+                    				},
+                       
+                    				"color" : "#FFF",
+                       
+                    				"origin" : {
+                       					"x" : 25,
+                       					"y" : 8
+                    				},
+                       
+                    				"size" : {
+                       					"width" : 140,
+                       					"height" : 20
+                    				}
+         		}]
+         }]
+}
