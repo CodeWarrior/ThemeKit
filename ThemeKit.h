@@ -11,13 +11,12 @@
 #pragma mark - Keys for drawing
 
 // Main parts of the JSON
-static NSString *const SubviewSectionKey = @"subview";
+static NSString *const SubviewSectionKey = @"subviews";
 
 // Type keys, distinction between primitive shapes
 static NSString *const TypeParameterKey = @"type";
 static NSString *const RectangleTypeKey = @"rectangle";
-static NSString *const CircleTypeKey = @"circle";
-static NSString *const LineTypeKey = @"line";
+static NSString *const EllipseTypeKey = @"ellipse";
 static NSString *const PathTypeKey = @"path";
 static NSString *const LabelTypeKey = @"label";
 

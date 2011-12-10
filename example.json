@@ -1,11 +1,14 @@
 {
 	"title" : "Theme-1",
+    
 	"size" : {
 		"width"	: 165,
 		"height" : 32
 	},
     
-	"subview" : [{	"type" : "rectangle",
+    
+    
+	"subviews" : [{	"type" : "rectangle",
      
             			"size" : {
                 			"width" : 165,
@@ -52,7 +55,7 @@
                 			"color" : "#28476a"
             			},
          
-            			"subview" : [
+            			"subviews" : [
             				{	"type" : "circle",
                        
                     				"origin" : {

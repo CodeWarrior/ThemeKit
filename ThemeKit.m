@@ -120,7 +120,7 @@
     
     // Enumerate over the descriptions, use concurrent enumeration to get a speed boost
     [descriptions enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                   usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {                                       
+                            usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {                                       
                         // All the views will be represented by dictionaries
                         NSDictionary *view = (NSDictionary *)obj;
                                 
@@ -128,13 +128,16 @@
                         NSString *type = [view objectForKey: TypeParameterKey];
                                 
                         // Get the frame of the view, they all need to have it = it's type independent (line is an exception)
-                        CGRect frame = CGRectZero;
-                        if (![type isEqualToString: LineTypeKey]) {
-                            frame = CGRectMake([[[view objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                                                [[[view objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
-                                                [[[view objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
-                                                [[[view objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
+                        CGPoint origin = CGPointZero;
+                        if ([view objectForKey: OriginParameterKey]) {
+                            origin.x = [[[view objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue];
+                            origin.y = [[[view objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue];
                         }
+                                
+                        CGRect frame = CGRectZero;
+                        frame = CGRectMake(origin.x, origin.y,
+                                            [[[view objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
+                                            [[[view objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
                                 
                         // Depending on the type use the appropriate drawing method
                         if ([type isEqualToString: RectangleTypeKey]) {
@@ -152,7 +155,7 @@
                                     [rectangle insertSubview: obj atIndex: idx];
                                 }];
                             }
-                        } else if ([type isEqualToString: CircleTypeKey]) {
+                        } else if ([type isEqualToString: EllipseTypeKey]) {
                             UIImageView *circle = [self circleInFrame: frame options: view];
                             
                             // Insert to appropriate index
@@ -167,16 +170,6 @@
                                     [circle insertSubview: obj atIndex: idx];
                                 }];
                             }
-                        } else if ([type isEqualToString: LineTypeKey]) {
-                            // Extract the two points
-                            NSDictionary *start = [view objectForKey: StartPointParameterKey];
-                            CGPoint startPoint = CGPointMake([[start objectForKey: XCoordinateParameterKey] floatValue], [[start objectForKey: YCoordinateParameterKey] floatValue]);
-                            
-                            NSDictionary *end = [view objectForKey: EndPointParameterKey];
-                            CGPoint endPoint = CGPointMake([[end objectForKey: XCoordinateParameterKey] floatValue], [[end objectForKey: YCoordinateParameterKey] floatValue]);
-                            
-                            UIImageView *line = [self lineFromPoint: startPoint toPoint: endPoint options: view];
-                            [subviews insertObject: line atIndex: idx];
                         } else if ([type isEqualToString: LabelTypeKey]) {
                             UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
                             label.backgroundColor = [UIColor clearColor];
@@ -367,7 +360,7 @@
         CGFloat blur = 0.0;
         
         // Adjust blur if key is present
-        if ([[dictionary objectForKey: BlurParameterKey] floatValue]) {
+        if ([dictionary objectForKey: BlurParameterKey]) {
             blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
         }
         
@@ -1914,12 +1907,29 @@
     if (_isCached && [_cache objectForKey: JSONData])
         return [_cache objectForKey: JSONData];
     
-    // Next get the size parameters of the main dictionary - that is the size of self
-    CGSize size = CGSizeMake([[[JSONDictionary objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
-                             [[[JSONDictionary objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
+    // Next get the size parameters of the main dictionary - that is the size of outermost view
+    CGSize size;
+    if ([JSONDictionary objectForKey: SizeParameterKey]) {
+        size = CGSizeMake([[[JSONDictionary objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
+                         [[[JSONDictionary objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
+    } else {
+        NSLog(@"Error! No size specified for the outermost view, will result in no view being drawn");
+        size = CGSizeZero;
+    }
+    
+    // Grab the origin, if present
+    CGPoint origin;
+    if ([JSONDictionary objectForKey: OriginParameterKey]) {
+        origin = CGPointMake([[[JSONDictionary objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                             [[[JSONDictionary objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
+    } else {
+        // No origin means default to 0.0 0.0
+        origin = CGPointZero;
+    }
     
     // Create the container view
-    UIView *view = [[[UIView alloc] initWithFrame: CGRectMake(0.0, 0.0, size.width, size.height)] autorelease];
+    UIView *view = [[[UIView alloc] initWithFrame: CGRectMake(origin.x, origin.y, size.width, size.height)] autorelease];
+    [view setBackgroundColor: [UIColor clearColor]];
     
     if (view) {
         // Grab the subviews
