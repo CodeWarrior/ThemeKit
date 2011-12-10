@@ -142,6 +142,55 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 <td>| <code>blend-mode</code> - optional</td>
 <td>Blend mode of the shadow, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
 </tr>
+<tr>
+<td><code>corner-radius</code></td>
+<td>Only available for <code>rectangle</code>. Can either be a single value or an array of up to 4 floating point values</td>
+</tr>
+<tr>
+<td><code>gradient-fill</code></td>
+<td>Dictionary describing a gradient overlay. Currently only linear from top-left to bottom-left of the view</td>
+</tr>
+<tr>
+<td>| <code>gradient-colors</code></td>
+<td>Array of hexadecimal color codes, minimum of 2</td>
+</tr>
+<tr>
+<td>| <code>gradient-positions</code></td>
+<td>Array of unit values describing the locations of the colors in the gradient, has to have a value for each color</td>
+</tr>
+<tr>
+<td>| <code>blend-mode</code> - optional</td>
+<td>Blend mode of the gradient, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
+</tr>
+<tr>
+<td>| <code>alpha</code> - optional</td>
+<td>Alpha value of the gradient, ranges from 0.0 to 1.0, defaults to 1.0</td>
+</tr>
+<tr>
+<td><code>inner-stroke</code>/<code>outer-stroke</code></td>
+<td>Dictionary description of the inner-stroke/outer-stroke. Both can be applied to the same view</td>
+</tr>
+<tr>
+<td>| <code>width</code></td>
+<td>Width of the stroke</td>
+</tr>
+<tr>
+<td>| <code>color</code> - optional</td>
+<td>String with a hexadecimal color code (defaults to <code>#000</code>), <code>#</code> is optional and patterns are available, i.e <code>#29</code> == <code>#292929</code>
+</tr>
+<tr>
+<td>| <code>alpha</code> - optional</td>
+<td>Alpha value of the shadow, ranges from 0.0 to 1.0, defaults to 1.0</td>
+</tr>
+<tr>
+<tr>
+<td>| <code>blend-mode</code> - optional</td>
+<td>Blend mode of the shadow, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
+</tr>
+<tr>
+<td><code>subviews</code> - optional</td>
+<td>Array containing descriptions of </code>subview</code>s. UIView hierarchy will reflect this<td>
+</tr>
 </table>
 
 #Installation notes
