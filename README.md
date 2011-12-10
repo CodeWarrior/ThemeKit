@@ -11,7 +11,7 @@ Greater goal is to reach something that is capable of rendering a variety of dif
 ThemeKit uses JSON to describe the views being rendered. The format is simple and mimics the syntax of CSS. 
 
 ##Header
-<table width=80%>
+<table>
 <tr>
 <td width=30%><code>size</code></td>
 <td>Dictionary containing two keys. Size used for the outermost container UIView</td>
@@ -48,7 +48,7 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 </table>
 
 ##Subview
-<table width=80%>
+<table>
 <tr>
 <td width=30%><code>type</code></td>
 <td>Type of the view, currently supported - <code>rectangle</code>, <code>ellipse</code>, <code>label</code></td>
