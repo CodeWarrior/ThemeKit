@@ -6,6 +6,8 @@ The benefit of doing graphics rendering with Core Graphics is saving space, whil
 
 Greater goal is to reach something that is capable of rendering a variety of different UI elements from simple and small JSON descriptions which can be created by hand or using a simple plugin for Photoshop.
 
+As ThemeKit is in very early development, all feedback is highly encouraged, you can find me on [twitter.com/henrinormak](http://twitter.com/henrinormak, "Twitter")
+
 #JSON format
 
 ThemeKit uses JSON to describe the views being rendered. The format is simple and mimics the syntax of CSS. 
