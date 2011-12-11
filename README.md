@@ -117,7 +117,7 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 </tr>
 <tr>
 <td><code>inner-shadow</code></td>
-<td>Dictionary describing the inner shadow of the view</td>
+<td>Dictionary describing the inner shadow of the view. Not available for <code>label</code></td>
 </tr>
 <tr>
 <td>| <code>offset</code></td>
@@ -170,7 +170,7 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 </tr>
 <tr>
 <td><code>inner-stroke</code>/<code>outer-stroke</code></td>
-<td>Dictionary description of the inner-stroke/outer-stroke. Both can be applied to the same view</td>
+<td>Dictionary description of the inner-stroke/outer-stroke. Both can be applied to the same view. Not available for <code>label</code></td>
 </tr>
 <tr>
 <td>| <code>width</code></td>
@@ -200,5 +200,8 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 Simply drag every file to your Xcode project. After this you can simply call `[[ThemeKit sharedEngine] viewHierarchyFromJSON: data]`, with the data being in the format described, which will return a completely native UIView hierarchy ready to be used anywhere.
 
 As an example, a JSON description of a button is included, returning a small canvas with a button on it.
+
+Example of the button rendered, when compared with an .png image of the same button. Image is on the bottom.
+![ThemeKit vs UIImage](http://f.cl.ly/items/420G3b1x1Q0f212E3u16/template.png)
 
 When used < iOS 5, ThemeKit will also need [JSONKit](http://https://github.com/johnezang/JSONKit, "JSONKit on GitHub") to function. From iOS 5 onwards, NSJSONSerialization is used
