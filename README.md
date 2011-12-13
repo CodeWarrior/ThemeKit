@@ -53,7 +53,7 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 <table>
 <tr>
 <td width=30%><code>type</code></td>
-<td>Type of the view, currently supported - <code>rectangle</code>, <code>ellipse</code>, <code>label</code></td>
+<td>Type of the view, currently supported - <code>rectangle</code>, <code>ellipse</code>, <code>label</code>, <code>path</code></td>
 </tr>
 <tr>
 <td><code>size</code></td>
@@ -188,6 +188,10 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 <tr>
 <td>| <code>blend-mode</code> - optional</td>
 <td>Blend mode of the shadow, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
+</tr>
+<tr>
+<td><code>description</code> - <code>path</code> only</td>
+<td>Path description in SVG syntax, for example <code>M150 0 L75 200 L225 200 Z</code> draws a triangle</td>
 </tr>
 <tr>
 <td><code>subviews</code> - optional</td>

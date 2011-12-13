@@ -87,7 +87,7 @@
 - (UIImageView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options;      // Rectangle
 - (UIImageView *)circleInFrame: (CGRect)frame options: (NSDictionary *)options;         // Circle
 - (UIImageView *)lineFromPoint: (CGPoint)fromPoint toPoint: (CGPoint)toPoint options: (NSDictionary *)options;    // Line
-- (UIImageView *)pathInFrame: (CGRect)frame options: (NSDictionary *)options;
+- (UIImageView *)pathForOptions: (NSDictionary *)options;
 
 // Paths, following SVG standard syntax
 - (CGMutablePathRef)newPathForSVGSyntax: (NSString *)description;
@@ -135,41 +135,23 @@
                         }
                                 
                         CGRect frame = CGRectZero;
-                        frame = CGRectMake(origin.x, origin.y,
+                        // Size will be determined for views, paths don't need to have size specified (will be calculated)
+                        if (![type isEqualToString: PathTypeKey]) {
+                            frame = CGRectMake(origin.x, origin.y,
                                             [[[view objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
                                             [[[view objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
+                        }
+                                
+                        // Resulting view
+                        UIView *result = nil;
                                 
                         // Depending on the type use the appropriate drawing method
                         if ([type isEqualToString: RectangleTypeKey]) {
-                            UIImageView *rectangle = [self rectangleInFrame: frame options: view];
-                            
-                            // Insert at the specific index, to guarantee correct ordering of layers
-                            [subviews insertObject: rectangle atIndex: idx];
-                            
-                            // Check for additional subviews
-                            if ([view objectForKey: SubviewSectionKey]) {
-                                NSArray *nested = [self viewsForDescriptions: [view objectForKey: SubviewSectionKey]];
-                                
-                                [nested enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                                         usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                    [rectangle insertSubview: obj atIndex: idx];
-                                }];
-                            }
+                            result = [self rectangleInFrame: frame options: view];
                         } else if ([type isEqualToString: EllipseTypeKey]) {
-                            UIImageView *circle = [self circleInFrame: frame options: view];
-                            
-                            // Insert to appropriate index
-                            [subviews insertObject: circle atIndex: idx];
-                            
-                            // Check for additional subviews
-                            if ([view objectForKey: SubviewSectionKey]) {
-                                NSArray *nested = [self viewsForDescriptions: [view objectForKey: SubviewSectionKey]];
-                                
-                                [nested enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                                         usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                    [circle insertSubview: obj atIndex: idx];
-                                }];
-                            }
+                            result = [self circleInFrame: frame options: view];
+                        } else if ([type isEqualToString: PathTypeKey]) {
+                            result = [self pathForOptions: view];
                         } else if ([type isEqualToString: LabelTypeKey]) {
                             UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
                             label.backgroundColor = [UIColor clearColor];
@@ -231,12 +213,25 @@
                                 NSDictionary *offset = [[view objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
                                 label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
                                                                 [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-                                }
-                            
-                                [subviews insertObject: label atIndex: idx];
-                            } else {
-                                NSLog(@"Unknown type \"%@\" encountered, ignoring", type);
                             }
+                            
+                            result = label;
+                        } else {
+                            NSLog(@"Unknown type \"%@\" encountered, ignoring", type);
+                        }
+                                
+                        // Insert at the specific index, to guarantee correct ordering of layers
+                        [subviews insertObject: result atIndex: idx];
+                                
+                        // Check for additional subviews
+                        if ([view objectForKey: SubviewSectionKey]) {
+                            NSArray *nested = [self viewsForDescriptions: [view objectForKey: SubviewSectionKey]];
+                                
+                            [nested enumerateObjectsWithOptions: NSEnumerationConcurrent
+                                                        usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+                                                            [result insertSubview: obj atIndex: idx];
+                                                        }];
+                        }
                     }];
     
     return [NSArray arrayWithArray: subviews];
@@ -1028,19 +1023,19 @@
     return result;
 }
 
-- (UIImageView *)pathInFrame: (CGRect)frame options: (NSDictionary *)options {
+- (UIImageView *)pathForOptions: (NSDictionary *)options {
+    // Get the path described
+    CGMutablePathRef mainPath = [self newPathForSVGSyntax: [options objectForKey: PathDescriptionKey]];
+    
+    // Create a frame based on the extremes of the path
+    CGRect frame = CGPathGetBoundingBox(mainPath);
+    
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
     CGSize size = frame.size;
     
     // Additionally keep track of the canvasrect
     CGRect canvasRect = frame;
-    
-    // Get the path described
-    CGMutablePathRef mainPath = [self newPathForSVGSyntax: [options objectForKey: PathDescriptionKey]];
-    
-    // Adjust the frame
-    frame = CGPathGetBoundingBox(mainPath);
     
     // If outer stroke, enlarge the frame
     if ([options objectForKey: OuterStrokeOptionKey]) {
@@ -1064,7 +1059,7 @@
     }
     
     // Now as we have the frame, check cache for a view with same properties
-    // As a key use a .strings representation of the NSDictionary
+    // As a key use the NSDictionary of the description
     if (_isCached && [_cache objectForKey: options]) {
         UIImageView *result = [[[UIImageView alloc] initWithImage: [_cache objectForKey: options]] autorelease];
         result.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, result.frame.size.width, result.frame.size.height);
@@ -1831,9 +1826,7 @@
 }
 
 
-- (void)flushCache {
-    NSLog(@"Flushing cache");
-    
+- (void)flushCache {    
     // Simply empty out the cache dictionary
     if (_isCached) {
         [_cache removeAllObjects];
