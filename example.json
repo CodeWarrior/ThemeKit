@@ -6,8 +6,6 @@
 		"height" : 32
 	},
     
-    
-    
 	"subviews" : [{	"type" : "rectangle",
      
             			"size" : {
@@ -56,7 +54,7 @@
             			},
          
             			"subviews" : [
-            				{	"type" : "circle",
+            				{	"type" : "ellipse",
                        
                     				"origin" : {
                        					"x" : 11,
