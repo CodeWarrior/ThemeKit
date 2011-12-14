@@ -112,10 +112,6 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 <td>Blur value for the shadow, defaults to 0.0. Not available for <code>label</code></td>
 </tr>
 <tr>
-<td>| <code>blend-mode</code> - optional</td>
-<td>Blend mode of the shadow, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
-</tr>
-<tr>
 <td><code>inner-shadow</code></td>
 <td>Dictionary describing the inner shadow of the view. Not available for <code>label</code></td>
 </tr>
@@ -182,12 +178,12 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 </tr>
 <tr>
 <td>| <code>alpha</code> - optional</td>
-<td>Alpha value of the shadow, ranges from 0.0 to 1.0, defaults to 1.0</td>
+<td>Alpha value of the stroke, ranges from 0.0 to 1.0, defaults to 1.0</td>
 </tr>
 <tr>
 <tr>
 <td>| <code>blend-mode</code> - optional</td>
-<td>Blend mode of the shadow, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
+<td>Blend mode of the stroke, defaults to <code>normal</code>. Available <code>normal</code>, <code>overlay</code>, <code>multiply</code>, <code>softlight</code>. Not available for <code>label</code></td>
 </tr>
 <tr>
 <td><code>description</code> - <code>path</code> only</td>
