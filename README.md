@@ -166,7 +166,7 @@ ThemeKit uses JSON to describe the views being rendered. The format is simple an
 </tr>
 <tr>
 <td><code>inner-stroke</code>/<code>outer-stroke</code></td>
-<td>Dictionary description of the inner-stroke/outer-stroke. Both can be applied to the same view. Not available for <code>label</code></td>
+<td>Dictionary description of the inner-stroke/outer-stroke. Both can be applied to the same view. Not available for <code>label</code>, <code>inner-stroke</code> not available for path</td>
 </tr>
 <tr>
 <td>| <code>width</code></td>
