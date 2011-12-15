@@ -8,16 +8,9 @@
 
 #import "ThemeKit.h"
 #import "TKPathCommand.h"
+#import "TKView.h"
 
 #pragma mark - UIColor Extension
-
-@interface UIColor (Extensions)
-
-// Method for converting web hex color into a UIColor object, pass in a string similar to "FFFFFF" or "#FFFFFF"
-// If less than six characters long, will be used as a pattern - "FFA" will result in "FFAFFA" and "FFFA" results in "FFFAFF"
-+ (UIColor *)colorForWebColor: (NSString *)colorCode;
-
-@end
 
 @implementation UIColor (Extensions)
 
@@ -74,170 +67,428 @@
                            alpha: 1.0];
 }
 
+- (NSString *)hexValue {
+    // Get all the components
+    const CGFloat *c = CGColorGetComponents(self.CGColor);
+    
+    CGFloat a = MIN(MAX(c[CGColorGetNumberOfComponents(self.CGColor) - 1], 0), 1);
+    CGFloat r = MIN(MAX(c[0], 0), 1);
+    CGFloat g = MIN(MAX(c[0], 0), 1);
+    CGFloat b = MIN(MAX(c[0], 0), 1);
+    
+    if (CGColorSpaceGetModel(CGColorGetColorSpace(self.CGColor)) != kCGColorSpaceModelMonochrome) {
+        g = MIN(MAX(c[1], 0), 1);
+        b = MIN(MAX(c[2], 0), 1);
+    }
+        
+    // Convert to hex string between 0x00 and 0xFF
+    return [NSString stringWithFormat:@"0x%02X%02X%02X%02X",
+            (NSInteger)(a * 255), (NSInteger)(r * 255), (NSInteger)(g * 255), (NSInteger)(b * 255)];
+}
+
 @end
+
+#pragma mark - C helpers
+void TKContextSetBlendModeForString(CGContextRef context, NSString *string);
+void TKContextAddShadowWithOptions(CGContextRef context, NSDictionary *options);
+void TKContextStrokePathWithOptions(CGContextRef context, NSDictionary *options);
+void TKContextDrawGradientForOptions(CGContextRef context, NSDictionary *options, CGPoint startPoint, CGPoint endPoint);
+
+CGRect TKShadowRectForRectAndOptions(CGRect rect, NSDictionary *options);
+CGRect TKStrokeRectForRectAndWidth(CGRect rect, CGFloat width);
+void TKBalanceCornerRadiiIntoSize(CGFloat *radii, CGSize size);
+CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect);
 
 #pragma mark - Drawing Extension
 
 @interface ThemeKit (DrawingExtensions)
 
-// General processing
+#pragma mark - Factory methods
 - (NSArray *)viewsForDescriptions: (NSArray *)descriptions;
+- (UIView *)addSubviewsWithDescriptions: (NSArray *)descriptions toView: (UIView *)view;
+- (UIView *)viewForDescription: (NSDictionary *)description;
 
-// Primitive shapes
-- (UIImageView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options;      // Rectangle
-- (UIImageView *)circleInFrame: (CGRect)frame options: (NSDictionary *)options;         // Circle
-- (UIImageView *)lineFromPoint: (CGPoint)fromPoint toPoint: (CGPoint)toPoint options: (NSDictionary *)options;    // Line
-- (UIImageView *)pathForOptions: (NSDictionary *)options;
+#pragma mark - Primitives
+- (TKView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options;      // Rectangle
+- (TKView *)circleInFrame: (CGRect)frame options: (NSDictionary *)options;         // Circle
+- (TKView *)pathAtOrigin: (CGPoint)start forOptions: (NSDictionary *)options;      // Path
 
-// Paths, following SVG standard syntax
-- (CGMutablePathRef)newPathForSVGSyntax: (NSString *)description;
-
-// Helpers
-- (void)balanceCornerRadiuses: (CGFloat *)radii toFitIntoSize: (CGSize)size;
-- (CGMutablePathRef)newRoundedPathForRect: (CGRect)rect withRadiuses: (CGFloat *)radii;
-- (CGGradientRef)newGradientForColors: (NSArray *)CGColors andLocations: (CGFloat[])locations;
-- (CGBlendMode)blendModeForString: (NSString *)key;
+// Path, following SVG standard syntax
+- (CGMutablePathRef)pathForSVGSyntax: (NSString *)description;
 
 // SVG Paths, returns an array of TKPathCommand objects, 
 // containing instructions on how to draw the description
 - (NSArray *)arrayOfPathCommandsFromSVGDescription: (NSString *)description;
 - (CGPoint)pointFromScanner: (NSScanner *)scanner relativeToPoint: (CGPoint)currentPoint;
 
-// Drawing
-- (CGRect)shadowRectForRect: (CGRect)frame andOptions: (NSDictionary *)options;
-- (CGRect)strokeRectForRect: (CGRect)frame andWidth: (CGFloat)strokeWidth;
-
 // Cache
 - (void)flushCache;
 
 @end
 
+#pragma mark - C helpers
+
+void TKContextSetBlendModeForString(CGContextRef context, NSString *string) {
+    CGBlendMode blendMode;
+    if ([string isEqualToString: @"overlay"]) {
+        blendMode = kCGBlendModeOverlay;
+    } else if ([string isEqualToString: @"multiply"]) {
+        blendMode = kCGBlendModeMultiply;
+    } else if ([string isEqualToString: @"softlight"]) {
+        blendMode = kCGBlendModeSoftLight;
+    } else {
+        blendMode = kCGBlendModeNormal;
+    }
+    
+    CGContextSetBlendMode(context, blendMode);
+}
+void TKContextAddShadowWithOptions(CGContextRef context, NSDictionary *options) {
+    NSDictionary *offsetOptions = [options objectForKey: OffsetParameterKey];
+    
+    CGSize offset = CGSizeMake([[offsetOptions objectForKey: XCoordinateParameterKey] floatValue], [[offsetOptions objectForKey: YCoordinateParameterKey] floatValue]);
+    CGFloat blur = 0.0;
+    
+    // Adjust blur if key is present
+    if ([options objectForKey: BlurParameterKey]) {
+        blur = [[options objectForKey: BlurParameterKey] floatValue];
+    }
+    
+    CGFloat alpha = 1.0;
+    
+    if ([options objectForKey: AlphaParameterKey])
+        alpha = [[options objectForKey: AlphaParameterKey] floatValue];
+    
+    if ([options objectForKey: ColorParameterKey])
+        CGContextSetShadowWithColor(context, offset, blur, [[UIColor colorForWebColor: [options objectForKey: ColorParameterKey]] colorWithAlphaComponent: alpha].CGColor);
+    else
+        CGContextSetShadowWithColor(context, offset, blur, [[UIColor blackColor] colorWithAlphaComponent: alpha].CGColor);
+}
+void TKContextStrokePathWithOptions(CGContextRef context, NSDictionary *options) {
+    // Check if blend mode is present
+    if ([options objectForKey: BlendModeParameterKey]) {
+        // Get the blend mode and apply it to the context
+        TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
+    }
+    
+    if ([options objectForKey: AlphaParameterKey])
+        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
+    
+    if ([options objectForKey: ColorParameterKey])
+        CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
+    else
+        CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
+    
+    // Set the width
+    CGContextSetLineWidth(context, [[options objectForKey: WidthParameterKey] floatValue]);
+    
+    // Stroke it
+    CGContextStrokePath(context);
+}
+void TKContextDrawGradientForOptions(CGContextRef context, NSDictionary *options, CGPoint startPoint, CGPoint endPoint) {
+    // Apply the blend mode to the context if one is present
+    if ([options objectForKey: BlendModeParameterKey]) {
+        TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
+    }
+    
+    // Check if alpha is present
+    if ([options objectForKey: AlphaParameterKey]) {
+        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]); 
+    }
+    
+    // Create the gradient
+    NSArray *colors = [options objectForKey: GradientColorsParameterKey];
+    NSMutableArray *CGColors = [NSMutableArray arrayWithCapacity: [colors count]];
+    for (NSString *color in colors) {
+        [CGColors insertObject: (id)[UIColor colorForWebColor: color].CGColor atIndex: [colors indexOfObject: color]];
+    }
+    
+    // And then the locations
+    colors = [options objectForKey: GradientPositionsParameterKey];
+    CGFloat *positions = (CGFloat *)calloc(sizeof(CGFloat), [colors count]);
+    for (NSNumber *number in colors) {
+        positions[[colors indexOfObject: number]] = [number floatValue];
+    }
+    
+    CGColorSpaceRef rgbSpace = CGColorSpaceCreateDeviceRGB();
+	CGGradientRef gradient = CGGradientCreateWithColors(rgbSpace, (CFArrayRef)CGColors, positions);
+    CGColorSpaceRelease(rgbSpace);
+    
+    //Draw the gradient
+    CGContextDrawLinearGradient(context, gradient, startPoint, endPoint, 0);
+    
+    // Release the gradient
+    CGGradientRelease(gradient);
+}
+
+CGRect TKShadowRectForRectAndOptions(CGRect rect, NSDictionary *options) {
+    NSDictionary *offsetDictionary = [options objectForKey: OffsetParameterKey];
+    CGSize offset = CGSizeMake([[offsetDictionary objectForKey: XCoordinateParameterKey] floatValue], [[offsetDictionary objectForKey: YCoordinateParameterKey] floatValue]);
+    CGFloat blur = [[options objectForKey: BlurParameterKey] floatValue];
+    
+    // Create the shadow rect
+    CGRect shadowRect = rect;
+    
+    CGPoint shadowOrigin = shadowRect.origin;
+    shadowOrigin.x += offset.width - blur;
+    shadowOrigin.y += offset.height - blur;
+    shadowRect.origin = shadowOrigin;
+    
+    CGSize shadowSize = shadowRect.size;
+    shadowSize.width += 2 * blur;
+    shadowSize.height += 2 * blur;
+    shadowRect.size = shadowSize;
+    
+    // Return the resulting rect
+    return shadowRect;
+}
+CGRect TKStrokeRectForRectAndWidth(CGRect rect, CGFloat width) {
+    // Create a stroke rect
+    CGRect strokeRect = rect;
+    CGPoint strokeOrigin = strokeRect.origin;
+    strokeOrigin.x -= width;
+    strokeOrigin.y -= width;
+    strokeRect.origin = strokeOrigin;
+    
+    CGSize strokeSize = strokeRect.size;
+    strokeSize.width += 2 * width;
+    strokeSize.height += 2 * width;
+    strokeRect.size = strokeSize;
+    
+    // Return the result
+    return strokeRect;
+}
+void TKBalanceCornerRadiiIntoSize(CGFloat *radii, CGSize size) {
+    // This method is passed an array of floats always 4 long, compare each pair
+    // The order is top-right bottom-right bottom-left top-left (clockwise, beginning in the top-right)    
+    // None should be larger than half of the either side
+    // (as they both connect the width to height, we need to make 8 comparisons)
+    CGFloat halfWidth = roundf(size.width / 2.0);
+    CGFloat halfHeight = roundf(size.height / 2.0);
+    
+    // Top right
+    radii[0] = radii[0] > halfWidth ? halfWidth : radii[0];
+    radii[0] = radii[0] > halfHeight ? halfHeight : radii[0];
+    
+    // Bottom right
+    radii[1] = radii[1] > halfWidth ? halfWidth : radii[1];
+    radii[1] = radii[1] > halfHeight ? halfHeight : radii[1];
+    
+    // Bottom left
+    radii[2] = radii[2] > halfWidth ? halfWidth : radii[2];
+    radii[2] = radii[2] > halfHeight ? halfHeight : radii[2];
+    
+    // Top left
+    radii[3] = radii[3] > halfWidth ? halfWidth : radii[3];
+    radii[3] = radii[3] > halfHeight ? halfHeight : radii[3];
+}
+CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
+    // There has to be 4 values in the radii array
+    CGMutablePathRef roundedPath = CGPathCreateMutable();
+    CGPathMoveToPoint(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y);
+    CGPathAddArc(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y + radii[3], 
+                 radii[3], -M_PI / 2.0, M_PI, 1);
+    
+    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x, rect.origin.y + rect.size.height - radii[2]);
+    CGPathAddArc(roundedPath, NULL, rect.origin.x + radii[2], rect.origin.y + rect.size.height - radii[2], 
+                 radii[2], M_PI, M_PI / 2.0, 1);
+    
+    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + rect.size.width - radii[1], rect.origin.y + rect.size.height);
+    CGPathAddArc(roundedPath, NULL, rect.origin.x + rect.size.width - radii[1], rect.origin.y + rect.size.height - radii[1], 
+                 radii[1], M_PI / 2.0, 0.0f, 1);
+    
+    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + rect.size.width, rect.origin.y + radii[0]);
+    CGPathAddArc(roundedPath, NULL, rect.origin.x + rect.size.width - radii[0], rect.origin.y + radii[0],
+                 radii[0], 0.0f, -M_PI / 2.0, 1);
+    
+    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y);
+    
+    [(id)roundedPath autorelease];
+    return roundedPath;
+}
+
+#pragma mark - Drawing Implementation
+
 @implementation ThemeKit (DrawingExtensions)
+
+#pragma mark - Factory methods
 
 - (NSArray *)viewsForDescriptions: (NSArray *)descriptions {
     // Create a mutable array to store the subviews in
     NSMutableArray *subviews = [NSMutableArray arrayWithCapacity: [descriptions count]];
-    
-    // Enumerate over the descriptions, use concurrent enumeration to get a speed boost
-    [descriptions enumerateObjectsWithOptions: NSEnumerationConcurrent
-                            usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {                                       
-                        // All the views will be represented by dictionaries
-                        NSDictionary *view = (NSDictionary *)obj;
-                                
-                        // First start by identifying the type of the view
-                        NSString *type = [view objectForKey: TypeParameterKey];
-                                
-                        // Get the frame of the view, they all need to have it = it's type independent (line is an exception)
-                        CGPoint origin = CGPointZero;
-                        if ([view objectForKey: OriginParameterKey]) {
-                            origin.x = [[[view objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue];
-                            origin.y = [[[view objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue];
-                        }
-                                
-                        CGRect frame = CGRectZero;
-                        // Size will be determined for views, paths don't need to have size specified (will be calculated)
-                        if (![type isEqualToString: PathTypeKey]) {
-                            frame = CGRectMake(origin.x, origin.y,
-                                            [[[view objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
-                                            [[[view objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
-                        }
-                                
-                        // Resulting view
-                        UIView *result = nil;
-                                
-                        // Depending on the type use the appropriate drawing method
-                        if ([type isEqualToString: RectangleTypeKey]) {
-                            result = [self rectangleInFrame: frame options: view];
-                        } else if ([type isEqualToString: EllipseTypeKey]) {
-                            result = [self circleInFrame: frame options: view];
-                        } else if ([type isEqualToString: PathTypeKey]) {
-                            result = [self pathForOptions: view];
-                        } else if ([type isEqualToString: LabelTypeKey]) {
-                            UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
-                            label.backgroundColor = [UIColor clearColor];
-                            
-                            // Content
-                            if ([view objectForKey: ContentStringParameterKey]) {
-                                label.text = [view objectForKey: ContentStringParameterKey];
-                            }
-                            
-                            // Alignment
-                            if ([view objectForKey: ContentAlignmentParameterKey]) {
-                                NSString *alignment = [view objectForKey: ContentAlignmentParameterKey];
-                                if ([alignment isEqualToString: @"center"]) {
-                                    label.textAlignment = UITextAlignmentCenter;
-                                } else if ([alignment isEqualToString: @"left"]) {
-                                    label.textAlignment = UITextAlignmentLeft;
-                                } else if ([alignment isEqualToString: @"right"]) {
-                                    label.textAlignment = UITextAlignmentRight;
-                                }
-                            }
-                            
-                            // Text color
-                            if ([view objectForKey: ColorParameterKey]) {
-                                label.textColor = [UIColor colorForWebColor: [view objectForKey: ColorParameterKey]];
-                            }
-                            
-                            // Alpha
-                            if ([view objectForKey: AlphaParameterKey]) {
-                                label.alpha = [[view objectForKey: AlphaParameterKey] floatValue];
-                            }
-                            
-                            // Font size & Font
-                            if ([view objectForKey: ContentFontSizeParameterKey]) {
-                                label.font = [UIFont systemFontOfSize: [[view objectForKey: ContentFontSizeParameterKey] floatValue]];
-                            }
-                            
-                            if ([view objectForKey: ContentFontWeightParameterKey]) {
-                                NSString *weight = [view objectForKey: ContentFontWeightParameterKey];
-                                
-                                if ([weight isEqualToString: @"bold"]) {
-                                    label.font = [UIFont boldSystemFontOfSize: label.font.pointSize];
-                                } else {
-                                    label.font = [UIFont systemFontOfSize: label.font.pointSize];
-                                }
-                            }
-                            
-                            if ([view objectForKey: ContentFontNameParameterKey]) {
-                                label.font = [UIFont fontWithName: [view objectForKey: ContentFontNameParameterKey] size: label.font.pointSize];
-                            }
-                            
-                            // Shadow
-                            if ([view objectForKey: DropShadowOptionKey]) {
-                                label.shadowColor = [UIColor colorForWebColor: [[view objectForKey: DropShadowOptionKey] objectForKey: ColorParameterKey]];
-                                
-                                if ([[view objectForKey: DropShadowOptionKey] objectForKey: AlphaParameterKey]) {
-                                    label.shadowColor = [label.shadowColor colorWithAlphaComponent: [[[view objectForKey: DropShadowOptionKey] objectForKey: AlphaParameterKey] floatValue]];
-                                }
-                                
-                                NSDictionary *offset = [[view objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
-                                label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
-                                                                [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-                            }
-                            
-                            result = label;
-                        } else {
-                            NSLog(@"Unknown type \"%@\" encountered, ignoring", type);
-                        }
-                                
-                        // Insert at the specific index, to guarantee correct ordering of layers
-                        [subviews insertObject: result atIndex: idx];
-                                
-                        // Check for additional subviews
-                        if ([view objectForKey: SubviewSectionKey]) {
-                            NSArray *nested = [self viewsForDescriptions: [view objectForKey: SubviewSectionKey]];
-                                
-                            [nested enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                                        usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                                            [result insertSubview: obj atIndex: idx];
-                                                        }];
-                        }
-                    }];
+        
+    // Enumerate over the descriptions
+    for (NSDictionary *info in descriptions) {
+        [subviews insertObject: [self viewForDescription: info] atIndex: [descriptions indexOfObject: info]];
+    }
     
     return [NSArray arrayWithArray: subviews];
 }
 
-- (UIImageView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options {
+- (UIView *)addSubviewsWithDescriptions: (NSArray *)descriptions toView: (UIView *)view {
+    // Keep track of the origin, in case we need to adjust it
+    CGPoint origin = CGPointMake(CGRectGetMinX(view.frame), CGRectGetMinY(view.frame));
+    
+    // Keep track of the size, in case the subviews have shadows or strokes that otherwise would extend outside
+    // our frame
+    CGSize finalSize = CGSizeMake(CGRectGetWidth(view.frame), CGRectGetHeight(view.frame));
+    
+    // Iterate over the descriptions and add the views as subviews
+    for (NSDictionary *viewDesc in descriptions) {
+        // Add the subview
+        [view insertSubview: [self viewForDescription: viewDesc] atIndex: [descriptions indexOfObject: viewDesc]];
+        
+        // Check whether the view had a shadow or a stroke, if so adjust the origin
+        CGFloat x, y;
+        if ([viewDesc objectForKey: DropShadowOptionKey]) {
+            NSDictionary *shadow = [viewDesc objectForKey: DropShadowOptionKey];
+            x = [[[shadow objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue];
+            y = [[[shadow objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue];
+            
+            // Only negative offsets affect the origin
+            if (x < 0)
+                origin.x += x;
+            
+            if (y < 0)
+                origin.y += y;
+        }
+        
+        // Stroke
+        if ([viewDesc objectForKey: OuterStrokeOptionKey]) {
+            // Stroke is uniform, hence grab the width
+            CGFloat width = [[[viewDesc objectForKey: OuterStrokeOptionKey] objectForKey: WidthParameterKey] floatValue];
+            
+            // Round up, because fractional width are common (how the paths work)
+            width = ceilf(width);
+            
+            // Check if width changes either of the axis
+            if (width > fabs(x))
+                origin.x -= (width - fabs(x));
+            
+            if (width > fabs(x))
+                origin.y -= (width - fabs(y));
+        }
+        
+        // Adjust the finalsize
+        finalSize.width = MAX(finalSize.width, CGRectGetWidth(view.frame));
+        finalSize.height = MAX(finalSize.height, CGRectGetHeight(view.frame));
+    }
+    
+    // Adjust the view so that it matches the contents
+    CGRect frame = view.frame;
+    frame.size = finalSize;
+    frame.origin = origin;
+    view.frame = frame;
+    
+    return view;
+}
+
+- (UIView *)viewForDescription: (NSDictionary *)description {
+    // First start by identifying the type of the view
+    NSString *type = [description objectForKey: TypeParameterKey];
+    
+    // Get the frame of the view, they all need to have it = it's type independent (line is an exception)
+    CGPoint origin = CGPointZero;
+    if ([description objectForKey: OriginParameterKey]) {
+        origin.x = [[[description objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue];
+        origin.y = [[[description objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue];
+    }
+    
+    CGRect frame = CGRectZero;
+    // Size will be determined for views, paths don't need to have size specified (will be calculated)
+    if (![type isEqualToString: PathTypeKey]) {
+        frame = CGRectMake(origin.x, origin.y,
+                           [[[description objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
+                           [[[description objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
+    }
+    
+    // Resulting view
+    UIView *result = nil;
+    
+    // Depending on the type use the appropriate drawing method
+    if ([type isEqualToString: RectangleTypeKey]) {
+        result = [self rectangleInFrame: frame options: description];
+    } else if ([type isEqualToString: EllipseTypeKey]) {
+        result = [self circleInFrame: frame options: description];
+    } else if ([type isEqualToString: PathTypeKey]) {
+        result = [self pathAtOrigin: origin forOptions: description];
+    } else if ([type isEqualToString: LabelTypeKey]) {
+        UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
+        label.backgroundColor = [UIColor clearColor];
+        
+        // Content
+        if ([description objectForKey: ContentStringParameterKey]) {
+            label.text = [description objectForKey: ContentStringParameterKey];
+        }
+        
+        // Alignment
+        if ([description objectForKey: ContentAlignmentParameterKey]) {
+            NSString *alignment = [description objectForKey: ContentAlignmentParameterKey];
+            if ([alignment isEqualToString: @"center"]) {
+                label.textAlignment = UITextAlignmentCenter;
+            } else if ([alignment isEqualToString: @"left"]) {
+                label.textAlignment = UITextAlignmentLeft;
+            } else if ([alignment isEqualToString: @"right"]) {
+                label.textAlignment = UITextAlignmentRight;
+            }
+        }
+        
+        // Text color
+        if ([description objectForKey: ColorParameterKey]) {
+            label.textColor = [UIColor colorForWebColor: [description objectForKey: ColorParameterKey]];
+        }
+        
+        // Alpha
+        if ([description objectForKey: AlphaParameterKey]) {
+            label.alpha = [[description objectForKey: AlphaParameterKey] floatValue];
+        }
+        
+        // Font size & Font
+        if ([description objectForKey: ContentFontSizeParameterKey]) {
+            label.font = [UIFont systemFontOfSize: [[description objectForKey: ContentFontSizeParameterKey] floatValue]];
+        }
+        
+        if ([description objectForKey: ContentFontWeightParameterKey]) {
+            NSString *weight = [description objectForKey: ContentFontWeightParameterKey];
+            
+            if ([weight isEqualToString: @"bold"]) {
+                label.font = [UIFont boldSystemFontOfSize: label.font.pointSize];
+            } else {
+                label.font = [UIFont systemFontOfSize: label.font.pointSize];
+            }
+        } else if ([description objectForKey: ContentFontNameParameterKey]) {
+            label.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize];
+        }
+        
+        // Shadow
+        if ([description objectForKey: DropShadowOptionKey]) {
+            label.shadowColor = [UIColor colorForWebColor: [[description objectForKey: DropShadowOptionKey] objectForKey: ColorParameterKey]];
+            
+            if ([[description objectForKey: DropShadowOptionKey] objectForKey: AlphaParameterKey]) {
+                label.shadowColor = [label.shadowColor colorWithAlphaComponent: [[[description objectForKey: DropShadowOptionKey] objectForKey: AlphaParameterKey] floatValue]];
+            }
+            
+            NSDictionary *offset = [[description objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
+            label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
+                                            [[offset objectForKey: YCoordinateParameterKey] floatValue]);
+        }
+        
+        result = label;
+    } else {
+        NSLog(@"Unknown type \"%@\" encountered, ignoring", type);
+        return nil;
+    }
+    
+    // Check for additional subviews
+    if ([description objectForKey: SubviewSectionKey]) {
+        [self addSubviewsWithDescriptions: [description objectForKey: SubviewSectionKey] toView: result];
+    }
+        
+    return result;
+}
+
+#pragma mark - Primitives
+
+- (TKView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options {
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
     CGSize size = frame.size;
@@ -245,60 +496,12 @@
     // Additionally keep track of the canvasrect
     CGRect canvasRect = frame;
     
-    // Now if there are corner-radii defined, make sure all 4 have a value and balance
-    NSObject *corners = [options valueForKey: CornerRadiusParameterKey];
-        
-    // Create an array into which well add the values
-    CGFloat radii[4];
-    
-    // Few variables for rounded corners
-    BOOL rounded = NO;
-    CGMutablePathRef roundedPath;
-    
-    if (corners) {
-        // Set the flag
-        rounded = YES;
-        
-        // First check if it's an array or a simple value
-        if ([corners respondsToSelector: @selector(objectAtIndex:)]) {
-            // Mutate it
-            NSMutableArray *adjustedCorners = [NSMutableArray arrayWithArray: (NSArray *)corners];
-            
-            // Array, make sure it's 4 long
-            int count = 4 - [adjustedCorners count];
-            if ([adjustedCorners count] < 4) {
-                for (int i = 0; i < count; i++) {
-                    // i refers to the index were copying the value from
-                    [adjustedCorners addObject: [adjustedCorners objectAtIndex: i]];
-                }
-            }
-            
-            // Adjust the radii
-            radii[0] = [[adjustedCorners objectAtIndex: 0] floatValue];
-            radii[1] = [[adjustedCorners objectAtIndex: 1] floatValue];
-            radii[2] = [[adjustedCorners objectAtIndex: 2] floatValue];
-            radii[3] = [[adjustedCorners objectAtIndex: 3] floatValue];
-            
-            adjustedCorners = nil;  // Hurry up the memory cleaning
-        } else {
-            // Means it's one single value
-            CGFloat radius = [(NSNumber *)corners floatValue];
-            radii[0] = radius;
-            radii[1] = radius;
-            radii[2] = radius;
-            radii[3] = radius;
-        }
-        
-        // Balance the corners
-        [self balanceCornerRadiuses: radii toFitIntoSize: frame.size];
-    }
-    
     // If outer stroke, enlarge the frame
     if ([options objectForKey: OuterStrokeOptionKey]) {
         CGFloat strokeWidth = [[[options objectForKey: OuterStrokeOptionKey] objectForKey: WidthParameterKey] floatValue];
         
         // Create a stroke rect
-        CGRect strokeRect = [self strokeRectForRect: frame andWidth: strokeWidth];
+        CGRect strokeRect = TKStrokeRectForRectAndWidth(frame, strokeWidth);
         
         // Find a union between the canvas and stroke rect
         canvasRect = CGRectUnion(canvasRect, strokeRect);
@@ -308,323 +511,270 @@
     if ([options objectForKey: DropShadowOptionKey]) {
         // Create a special frame for the shadow
         NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
-        CGRect shadowRect = [self shadowRectForRect: frame andOptions: dictionary];
+        CGRect shadowRect = TKShadowRectForRectAndOptions(frame, dictionary);
                         
         // Find the union between canvas and shadow
         canvasRect = CGRectUnion(canvasRect, shadowRect);
     }
     
     // Now as we have the frame, check cache for a view with same properties
-    // As a key use a .strings representation of the NSDictionary
+    // As a key use the NSDictionary
     if (_isCached && [_cache objectForKey: options]) {
-        UIImageView *result = [[[UIImageView alloc] initWithImage: [_cache objectForKey: options]] autorelease];
-        result.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, result.frame.size.width, result.frame.size.height);
-        
+        TKDrawingBlock drawBlock = [_cache objectForKey: options];
+        TKView *result = [TKView viewWithFrame: CGRectMake(frame.origin.x, frame.origin.y, 
+                                                           canvasRect.size.width, canvasRect.size.height)
+                               andDrawingBlock: drawBlock];
+
         return result;
     }
     
     // Adjust the inner origin, this is where the actual view is located
     origin.x = frame.origin.x - canvasRect.origin.x;
     origin.y = frame.origin.y - canvasRect.origin.y;
-    
-    // Create the path incase the rectangle is rounded
-    if (rounded)
-        roundedPath = [self newRoundedPathForRect: CGRectMake(origin.x, origin.y, size.width, size.height) withRadiuses: radii];
-    
-    // Setup the context
-    CGRect rect = CGRectMake(0.0, 0.0, canvasRect.size.width, canvasRect.size.height);
-    UIGraphicsBeginImageContextWithOptions(rect.size, NO, 
-                                       [[UIScreen mainScreen] scale]);
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    
-    // Alpha
-    if ([options objectForKey: AlphaParameterKey]) {
-        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
-    }
         
-    // Drawing code
-    // Start with the main inner view
-    CGContextSaveGState(context);
-    
-    // If shadow needed, draw it
-    if ([options objectForKey: DropShadowOptionKey]) {
-        NSDictionary *offsetOptions = [[options objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
-        NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
+    // Create the drawing block
+    TKDrawingBlock block = ^(CGContextRef context) {
+        // Now if there are corner-radii defined, make sure all 4 have a value and balance
+        NSObject *corners = [options valueForKey: CornerRadiusParameterKey];
         
-        CGSize offset = CGSizeMake([[offsetOptions objectForKey: XCoordinateParameterKey] floatValue], [[offsetOptions objectForKey: YCoordinateParameterKey] floatValue]);
-        CGFloat blur = 0.0;
+        // Create an array into which well add the values
+        CGFloat radii[4];
         
-        // Adjust blur if key is present
-        if ([dictionary objectForKey: BlurParameterKey]) {
-            blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
+        // Few variables for rounded corners
+        BOOL rounded = NO;
+        CGMutablePathRef roundedPath;
+        
+        if (corners) {
+            // Set the flag
+            rounded = YES;
+            
+            // First check if it's an array or a simple value
+            if ([corners respondsToSelector: @selector(objectAtIndex:)]) {
+                // Mutate it
+                NSMutableArray *adjustedCorners = [NSMutableArray arrayWithArray: (NSArray *)corners];
+                
+                // Array, make sure it's 4 long
+                int count = 4 - [adjustedCorners count];
+                if ([adjustedCorners count] < 4) {
+                    for (int i = 0; i < count; i++) {
+                        // i refers to the index were copying the value from
+                        [adjustedCorners addObject: [adjustedCorners objectAtIndex: i]];
+                    }
+                }
+                
+                // Adjust the radii
+                radii[0] = [[adjustedCorners objectAtIndex: 0] floatValue];
+                radii[1] = [[adjustedCorners objectAtIndex: 1] floatValue];
+                radii[2] = [[adjustedCorners objectAtIndex: 2] floatValue];
+                radii[3] = [[adjustedCorners objectAtIndex: 3] floatValue];
+                
+                adjustedCorners = nil;  // Hurry up the memory cleaning
+            } else {
+                // Means it's one single value
+                CGFloat radius = [(NSNumber *)corners floatValue];
+                radii[0] = radius;
+                radii[1] = radius;
+                radii[2] = radius;
+                radii[3] = radius;
+            }
+            
+            // Balance the corners
+            TKBalanceCornerRadiiIntoSize(radii, frame.size);
         }
         
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
+        // Create the path incase the rectangle is rounded
+        if (rounded)
+            roundedPath = TKRoundedPathInRectForRadii(radii, CGRectMake(origin.x, origin.y, size.width, size.height));
         
-        CGFloat alpha = 1.0;
-        
-        if ([dictionary objectForKey: AlphaParameterKey])
-            alpha = [[dictionary objectForKey: AlphaParameterKey] floatValue];
-        
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]] colorWithAlphaComponent: alpha].CGColor);
-        else
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor blackColor] colorWithAlphaComponent: alpha].CGColor);
-    }
-    
-    // Check if blend mode is present
-    if ([options objectForKey: BlendModeParameterKey]) {
-        // Get the blend mode and apply it to the context
-        CGContextSetBlendMode(context, [self blendModeForString: [options objectForKey: BlendModeParameterKey]]);
-    }
-    
-    // Load in the fill color
-    if ([options objectForKey: ColorParameterKey])
-        CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
-    else
-        CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
-    
-    // If rounded use the path, else just fill the rect
-    if (rounded) {        
-        // Add path to context and fill it
-        CGContextAddPath(context, roundedPath);
-        CGContextFillPath(context);
-    } else {
-        CGContextFillRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
-    }
-        
-    CGContextRestoreGState(context);
-    
-    // Check if gradient is present, if so draw it over the fill
-    if ([options objectForKey: GradientFillOptionKey]) {        
+        // Drawing code
+        // Start with the main inner view
         CGContextSaveGState(context);
         
-        NSDictionary *dictionary = [options objectForKey: GradientFillOptionKey];
-      
-        // Gradient is present, first clip the context, either to a rect or to a path
-        if (rounded) {            
+        // Alpha
+        if ([options objectForKey: AlphaParameterKey]) {
+            CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
+        }
+        
+        // If shadow needed, add it to the context
+        if ([options objectForKey: DropShadowOptionKey]) {
+            TKContextAddShadowWithOptions(context, [options objectForKey: DropShadowOptionKey]);
+        }
+        
+        // Apply the blend mode to the context if one is present
+        if ([options objectForKey: BlendModeParameterKey]) {
+            TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
+        }
+        
+        // Load in the fill color
+        if ([options objectForKey: ColorParameterKey])
+            CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
+        else
+            CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
+        
+        // If rounded use the path, else just fill the rect
+        if (rounded) {        
             // Add path to context and fill it
             CGContextAddPath(context, roundedPath);
+            CGContextFillPath(context);
+        } else {
+            CGContextFillRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
+        }
+        
+        CGContextRestoreGState(context);
+        
+        // Check if gradient is present, if so draw it over the fill
+        if ([options objectForKey: GradientFillOptionKey]) {        
+            CGContextSaveGState(context);
+            
+            // Gradient is present, first clip the context, either to a rect or to a path
+            if (rounded) {            
+                // Add path to context and fill it
+                CGContextAddPath(context, roundedPath);
+                CGContextClip(context);
+            } else {
+                CGContextClipToRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
+            }
+            
+            NSDictionary *dictionary = [options objectForKey: GradientFillOptionKey];
+            
+            TKContextDrawGradientForOptions(context, dictionary, CGPointMake(origin.x, origin.y), CGPointMake(origin.x, origin.y + size.height));
+            
+            CGContextRestoreGState(context);
+        }
+        
+        // Inner shadow
+        if ([options objectForKey: InnerShadowOptionKey]) {
+            CGContextSaveGState(context);
+            
+            NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
+            
+            // Start by clipping to the interior
+            if (rounded) {            
+                // Add path to context and fill it
+                CGContextAddPath(context, roundedPath);            
+            } else {
+                CGContextAddRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
+            }
+            
             CGContextClip(context);
-        } else {
-            CGContextClipToRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
-        }
-        
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        // Check if alpha is present
-        if ([dictionary objectForKey: AlphaParameterKey]) {
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]); 
-        }
-        
-        // Create the gradient
-        // First the colors
-        NSArray *colors = [dictionary objectForKey: GradientColorsParameterKey];
-        NSMutableArray *CGColors = [NSMutableArray arrayWithCapacity: [colors count]];
-        [colors enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                 usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                        [CGColors insertObject: (id)[UIColor colorForWebColor: (NSString *)obj].CGColor atIndex: idx]; }];
-        
-        // And then the locations
-        colors = [dictionary objectForKey: GradientPositionsParameterKey];
-        __block CGFloat *positions = (CGFloat *)calloc(sizeof(CGFloat), [colors count]);
-        [colors enumerateObjectsWithOptions: NSEnumerationConcurrent 
-                                 usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                     positions[idx] = [(NSNumber *)obj floatValue]; }];
-        
-        CGGradientRef gradient = [self newGradientForColors: CGColors andLocations: positions];
-        
-        //Draw the gradient
-        CGContextDrawLinearGradient(context, gradient, CGPointMake(origin.x, origin.y), CGPointMake(origin.x, origin.y + size.height), 0);
-        
-        // Release the gradient
-        CGGradientRelease(gradient);
-        
-        CGContextRestoreGState(context);
-    }
-    
-    // Inner shadow
-    if ([options objectForKey: InnerShadowOptionKey]) {
-        CGContextSaveGState(context);
-        
-        NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
-        
-        // Start by clipping to the interior
-        if (rounded) {            
-            // Add path to context and fill it
-            CGContextAddPath(context, roundedPath);            
-        } else {
-            CGContextAddRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
-        }
-        
-        CGContextClip(context);
-        
-        // Add bounding
-        CGContextAddRect(context, CGContextGetClipBoundingBox(context));
-        
-        // Add shifted interior by the offset of the inner shadow
-        if (rounded) {
-            CGMutablePathRef shadowRoundedPath = [self newRoundedPathForRect: CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                                                                                   origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
-                                                                                   size.width, size.height) withRadiuses: radii];
             
-            CGContextAddPath(context, shadowRoundedPath);            
-            CGPathRelease(shadowRoundedPath);
-        } else {
-            CGContextAddRect(context, CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                                                 origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
-                                                 size.width, size.height));
-        }
-        
-        // Set the color and opacity
-        if ([dictionary objectForKey: ColorParameterKey]) {
-            CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-        }
-        
-        if ([dictionary objectForKey: AlphaParameterKey]) {
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-        }
-        
-        // Set blend mode
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        // Fill by using EO rule
-        CGContextEOFillPath(context);
-        
-        CGContextRestoreGState(context);
-    }
-    
-    // Strokes
-    // Outer
-    if ([options objectForKey: OuterStrokeOptionKey]) {
-        CGContextSaveGState(context);
-        
-        // Parameters
-        NSDictionary *dictionary = [options objectForKey: OuterStrokeOptionKey];
-        
-        // Width
-        CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
-        
-        // There is a stroke, either create a path or enlarge the rect slightly
-        CGFloat halfStroke = strokeWidth / 2.0;
-        if (rounded) {
-            // Use the radii to draw a path, but adjust the radii, to be correct for the center of the stroke
-            CGFloat strokeRadii[4] = { radii[0] + halfStroke, radii[1] + halfStroke, radii[2] + halfStroke, radii[3] + halfStroke };
+            // Add bounding
+            CGContextAddRect(context, CGContextGetClipBoundingBox(context));
             
-            CGMutablePathRef strokeRoundedPath = [self newRoundedPathForRect: CGRectMake(origin.x - strokeWidth / 2.0, origin.y - strokeWidth / 2.0,
-                                                                                   size.width + strokeWidth, size.height + strokeWidth) withRadiuses: strokeRadii];
+            // Add shifted interior by the offset of the inner shadow
+            if (rounded) {
+                CGRect rect = CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                         origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
+                                         size.width, size.height);
+                CGMutablePathRef shadowRoundedPath = TKRoundedPathInRectForRadii(radii, rect);
+                
+                CGContextAddPath(context, shadowRoundedPath);            
+            } else {
+                CGContextAddRect(context, CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                                     origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
+                                                     size.width, size.height));
+            }
             
-            // Add path to context and fill it
-            CGContextAddPath(context, strokeRoundedPath);            
-            CGPathRelease(strokeRoundedPath);
-        } else {
-            // Not rounded, add the rect
-            CGContextAddRect(context, CGRectMake(origin.x - halfStroke, origin.y - halfStroke, size.width + strokeWidth, size.height + strokeWidth));
-        }
-        
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        if ([dictionary objectForKey: AlphaParameterKey])
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            // Set the color and opacity
+            if ([dictionary objectForKey: ColorParameterKey]) {
+                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            }
             
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-        else
-            CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
-        
-        // Set the width
-        CGContextSetLineWidth(context, strokeWidth);
-        
-        // Stroke it
-        CGContextStrokePath(context);
-        
-        CGContextRestoreGState(context);
-    }
-    
-    // Inner
-    if ([options objectForKey: InnerStrokeOptionKey]) {
-        CGContextSaveGState(context);
-        
-        // Parameters
-        NSDictionary *dictionary = [options objectForKey: InnerStrokeOptionKey];
-        
-        // Width
-        CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
-        
-        // There is a stroke, either create a path or enlarge the rect slightly
-        CGFloat halfStroke = strokeWidth / 2.0;
-        if (rounded) {
-            // Use the radii to draw a path, but adjust the radii, to be correct for the center of the stroke
-            CGFloat strokeRadii[4] = { MAX(0.0, radii[0] - halfStroke), MAX(radii[1] - halfStroke, 0.0), MAX(0.0, radii[2] - halfStroke), MAX(0.0, radii[3] - halfStroke) };
-
-            CGMutablePathRef strokeRoundedPath = [self newRoundedPathForRect: CGRectMake(origin.x + strokeWidth / 2.0, origin.y + strokeWidth / 2.0,
-                                                                                   size.width - strokeWidth, size.height - strokeWidth) withRadiuses: strokeRadii];
+            if ([dictionary objectForKey: AlphaParameterKey]) {
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            }
             
-            // Add path to context and fill it
-            CGContextAddPath(context, strokeRoundedPath);            
-            CGPathRelease(strokeRoundedPath);
-        } else {
-            // Not rounded, add the rect
-            CGContextAddRect(context, CGRectMake(origin.x + halfStroke, origin.y + halfStroke, size.width - strokeWidth, size.height - strokeWidth));
+            // Set blend mode
+            if ([dictionary objectForKey: BlendModeParameterKey]) {
+                TKContextSetBlendModeForString(context, [dictionary objectForKey: BlendModeParameterKey]);
+            }
+            
+            // Fill by using EO rule
+            CGContextEOFillPath(context);
+            
+            CGContextRestoreGState(context);
         }
         
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
+        // Strokes
+        // Outer
+        if ([options objectForKey: OuterStrokeOptionKey]) {
+            CGContextSaveGState(context);
+            
+            // Parameters
+            NSDictionary *dictionary = [options objectForKey: OuterStrokeOptionKey];
+            
+            // Width
+            CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
+            
+            // There is a stroke, either create a path or enlarge the rect slightly
+            CGFloat halfStroke = strokeWidth / 2.0;
+            if (rounded) {
+                // Use the radii to draw a path, but adjust the radii, to be correct for the center of the stroke
+                CGFloat strokeRadii[4] = { radii[0] + halfStroke, radii[1] + halfStroke, radii[2] + halfStroke, radii[3] + halfStroke };
+                
+                CGRect rect = CGRectMake(origin.x - strokeWidth / 2.0, origin.y - strokeWidth / 2.0,
+                                         size.width + strokeWidth, size.height + strokeWidth);
+                CGMutablePathRef strokeRoundedPath = TKRoundedPathInRectForRadii(strokeRadii, rect);
+                
+                // Add path to context and fill it
+                CGContextAddPath(context, strokeRoundedPath);            
+            } else {
+                // Not rounded, add the rect
+                CGContextAddRect(context, CGRectMake(origin.x - halfStroke, origin.y - halfStroke, size.width + strokeWidth, size.height + strokeWidth));
+            }
+            
+            TKContextStrokePathWithOptions(context, dictionary);
+            
+            CGContextRestoreGState(context);
         }
         
-        if ([dictionary objectForKey: AlphaParameterKey])
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-        
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-        else
-            CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
-        
-        // Set the width
-        CGContextSetLineWidth(context, strokeWidth);
-        
-        // Stroke it
-        CGContextStrokePath(context);
-        
-        CGContextRestoreGState(context);
-    }
-    
-    // Release memory
-    if (rounded)
-        CGPathRelease(roundedPath);
-    
-    // Wrap up and return the image
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
+        // Inner
+        if ([options objectForKey: InnerStrokeOptionKey]) {
+            CGContextSaveGState(context);
+            
+            // Parameters
+            NSDictionary *dictionary = [options objectForKey: InnerStrokeOptionKey];
+            
+            // Width
+            CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
+            
+            // There is a stroke, either create a path or enlarge the rect slightly
+            CGFloat halfStroke = strokeWidth / 2.0;
+            if (rounded) {
+                // Use the radii to draw a path, but adjust the radii, to be correct for the center of the stroke
+                CGFloat strokeRadii[4] = { MAX(0.0, radii[0] - halfStroke), MAX(radii[1] - halfStroke, 0.0), MAX(0.0, radii[2] - halfStroke), MAX(0.0, radii[3] - halfStroke) };
+                
+                CGRect rect = CGRectMake(origin.x + strokeWidth / 2.0, origin.y + strokeWidth / 2.0,
+                                         size.width - strokeWidth, size.height - strokeWidth);
+                CGMutablePathRef strokeRoundedPath = TKRoundedPathInRectForRadii(strokeRadii, rect);
+                
+                // Add path to context and fill it
+                CGContextAddPath(context, strokeRoundedPath);            
+            } else {
+                // Not rounded, add the rect
+                CGContextAddRect(context, CGRectMake(origin.x + halfStroke, origin.y + halfStroke, size.width - strokeWidth, size.height - strokeWidth));
+            }
+            
+            // Stroke the path
+            TKContextStrokePathWithOptions(context, dictionary);
+            
+            CGContextRestoreGState(context);
+        }
+    };
     
     // Store into cache, if needed. Use the same key created before
     if (_isCached)
-        [_cache setObject: image forKey: options];
-
-    // Create the view and return it
-    UIImageView *view = [[[UIImageView alloc] initWithImage: image] autorelease];
-    view.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, view.frame.size.width, view.frame.size.height);
+        [_cache setObject: Block_copy(block) forKey: options];
+    
+    // Wrap up and create the resulting view
+    TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x, frame.origin.y, 
+                                                     canvasRect.size.width, canvasRect.size.height)
+                         andDrawingBlock: block];
     
     return view;
 }
 
-- (UIImageView *)circleInFrame:(CGRect)frame options:(NSDictionary *)options {
+- (TKView *)circleInFrame:(CGRect)frame options:(NSDictionary *)options {
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
     CGSize size = frame.size;
@@ -637,7 +787,7 @@
         // Adjust the canvasrect
         CGFloat strokeWidth = [[[options objectForKey: OuterStrokeOptionKey] objectForKey: WidthParameterKey] floatValue];
         
-        CGRect strokeRect = [self strokeRectForRect: frame andWidth: strokeWidth];
+        CGRect strokeRect = TKStrokeRectForRectAndWidth(frame, strokeWidth);
         
         // Union to the canvasrect
         canvasRect = CGRectUnion(canvasRect, strokeRect);
@@ -648,7 +798,7 @@
         // Adjust the canvasrect, first get the property dictionary
         NSDictionary *shadow = [options objectForKey: DropShadowOptionKey];
         
-        CGRect shadowRect = [self shadowRectForRect: frame andOptions: shadow];
+        CGRect shadowRect = TKShadowRectForRectAndOptions(frame, shadow);
         
         // Union into the canvas
         canvasRect = CGRectUnion(canvasRect, shadowRect);
@@ -656,385 +806,199 @@
     
     // Check cache
     if (_isCached && [_cache objectForKey: options]) {
-        UIImageView *result = [[[UIImageView alloc] initWithImage: [_cache objectForKey: options]] autorelease];
-        result.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, result.frame.size.width, result.frame.size.height);
+        TKDrawingBlock block = [_cache objectForKey: options];
         
-        return result;
+        TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x, frame.origin.y, 
+                                                         canvasRect.size.width, canvasRect.size.height)
+                             andDrawingBlock: block];
+        
+        return view;
     }
     
     // Adjust the inner origin, this is where the actual view is located
     origin.x = frame.origin.x - canvasRect.origin.x;
     origin.y = frame.origin.y - canvasRect.origin.y;
-        
-    // Setup the context
-    CGRect rect = CGRectMake(0.0, 0.0, canvasRect.size.width, canvasRect.size.height);
-    UIGraphicsBeginImageContextWithOptions(rect.size, NO, [[UIScreen mainScreen] scale]);
-    CGContextRef context = UIGraphicsGetCurrentContext();
     
-    // Alpha
-    if ([options objectForKey: AlphaParameterKey]) {
-        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
-    }
-    
-    // Start by drawing the main shape
-    // Start with the main inner view
-    CGContextSaveGState(context);
-    
-    // If shadow needed, draw it
-    if ([options objectForKey: DropShadowOptionKey]) {
-        NSDictionary *offsetOptions = [[options objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
-        NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
-        
-        CGSize offset = CGSizeMake([[offsetOptions objectForKey: XCoordinateParameterKey] floatValue], [[offsetOptions objectForKey: YCoordinateParameterKey] floatValue]);
-        CGFloat blur = 0.0;
-        
-        if ([[dictionary objectForKey: BlurParameterKey] floatValue]) {
-            blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
+    // Create the drawing block
+    TKDrawingBlock drawBlock = ^(CGContextRef context) {
+        // Alpha
+        if ([options objectForKey: AlphaParameterKey]) {
+            CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
         }
         
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
+        // Start by drawing the main shape
+        // Start with the main inner view
+        CGContextSaveGState(context);
+        
+        // If shadow needed, draw it
+        if ([options objectForKey: DropShadowOptionKey]) {
+            NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
+            TKContextAddShadowWithOptions(context, dictionary);
         }
         
-        CGFloat alpha = 1.0;
-        
-        if ([dictionary objectForKey: AlphaParameterKey])
-            alpha = [[dictionary objectForKey: AlphaParameterKey] floatValue];
-        
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]] colorWithAlphaComponent: alpha].CGColor);
-        else
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor blackColor] colorWithAlphaComponent: alpha].CGColor);
-    }
-    
-    // Check if blend mode is present
-    if ([options objectForKey: BlendModeParameterKey]) {
         // Get the blend mode and apply it to the context
-        CGContextSetBlendMode(context, [self blendModeForString: [options objectForKey: BlendModeParameterKey]]);
-    }
-    
-    // Load in the fill color
-    if ([options objectForKey: ColorParameterKey])
-        CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
-    else
-        CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
-    
-    // Fill in the ellipse
-    CGContextFillEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
-    
-    CGContextRestoreGState(context);
-    
-    // Check if gradient is present, if so draw it over the fill
-    if ([options objectForKey: GradientFillOptionKey]) {        
-        CGContextSaveGState(context);
-        
-        // Gradient is present, clip to the ellipse
-        CGContextAddEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
-        CGContextClip(context);
-        
-        // Create the gradient
-        NSDictionary *dictionary = [options objectForKey: GradientFillOptionKey];
-        
-        // Check if alpha is present
-        if ([dictionary objectForKey: AlphaParameterKey]) {
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]); 
+        if ([options objectForKey: BlendModeParameterKey]) {
+            TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
         }
         
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-
-        // Create the gradient
-        // First the colors
-        NSArray *colors = [dictionary objectForKey: GradientColorsParameterKey];
-        NSMutableArray *CGColors = [NSMutableArray arrayWithCapacity: [colors count]];
-        [colors enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                 usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                     [CGColors insertObject: (id)[UIColor colorForWebColor: (NSString *)obj].CGColor atIndex: idx]; }];
-        
-        // And then the locations
-        colors = [dictionary objectForKey: GradientPositionsParameterKey];
-        __block CGFloat *positions = (CGFloat *)calloc(sizeof(CGFloat), [colors count]);
-        [colors enumerateObjectsWithOptions: NSEnumerationConcurrent 
-                                 usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                     positions[idx] = [(NSNumber *)obj floatValue]; }];
-        
-        CGGradientRef gradient = [self newGradientForColors: CGColors andLocations: positions];
-        
-        //Draw the gradient
-        CGContextDrawLinearGradient(context, gradient, CGPointMake(origin.x, origin.y), CGPointMake(origin.x, origin.y + size.height), 0);
-        
-        // Release the gradient
-        CGGradientRelease(gradient);        
-        CGContextRestoreGState(context);
-    }
-    
-    // Inner shadow
-    if ([options objectForKey: InnerShadowOptionKey]) {
-        CGContextSaveGState(context);
-        
-        NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
-        
-        // Start by clipping to the interior
-        CGContextAddEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
-        
-        CGContextClip(context);
-        
-        // Add bounding
-        CGContextAddRect(context, CGContextGetClipBoundingBox(context));
-        
-        // Add shifted interior by the offset of the inner shadow
-        CGContextAddEllipseInRect(context, CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue], 
-                                                      origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue], 
-                                                      size.width, size.height));
-        
-        // Set the color and opacity
-        if ([dictionary objectForKey: ColorParameterKey]) {
-            CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-        }
-        
-        if ([dictionary objectForKey: AlphaParameterKey]) {
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-        }
-        
-        // Set blend mode
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        // Fill by using EO rule
-        CGContextEOFillPath(context);
-        
-        CGContextRestoreGState(context);
-    }
-    
-    // Strokes
-    // Outer
-    if ([options objectForKey: OuterStrokeOptionKey]) {
-        CGContextSaveGState(context);
-        
-        // Parameters
-        NSDictionary *dictionary = [options objectForKey: OuterStrokeOptionKey];
-        
-        // Stroke width
-        CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
-        
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        // There is a stroke, either create a path
-        CGContextAddEllipseInRect(context, CGRectMake(origin.x - strokeWidth / 2.0, origin.y - strokeWidth / 2.0, size.width + strokeWidth, size.height + strokeWidth));
-        
-        if ([dictionary objectForKey: AlphaParameterKey])
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-        
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+        // Load in the fill color
+        if ([options objectForKey: ColorParameterKey])
+            CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
         else
-            CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
+            CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
         
-        // Set the width
-        CGContextSetLineWidth(context, strokeWidth + 0.5);
-        
-        // Stroke it
-        CGContextStrokePath(context);
+        // Fill in the ellipse
+        CGContextFillEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
         
         CGContextRestoreGState(context);
-    }
-    
-    // Inner
-    if ([options objectForKey: InnerStrokeOptionKey]) {
-        CGContextSaveGState(context);
         
-        // Parameters
-        NSDictionary *dictionary = [options objectForKey: InnerStrokeOptionKey];
-        
-        // Stroke width
-        CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
-        
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
+        // Check if gradient is present, if so draw it over the fill
+        if ([options objectForKey: GradientFillOptionKey]) {        
+            CGContextSaveGState(context);
+            
+            // Gradient is present, clip to the ellipse
+            CGContextAddEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
+            CGContextClip(context);
+            
+            // Draw the gradient
+            NSDictionary *dictionary = [options objectForKey: GradientFillOptionKey];
+            
+            TKContextDrawGradientForOptions(context, dictionary, CGPointMake(origin.x, origin.y), CGPointMake(origin.x, origin.y + size.height));
+            
+            CGContextRestoreGState(context);
         }
         
-        // Add the ellipse
-        CGContextAddEllipseInRect(context, CGRectMake(origin.x + strokeWidth / 2.0, origin.y + strokeWidth / 2.0, size.width - strokeWidth, size.height - strokeWidth));
-                
-        if ([dictionary objectForKey: AlphaParameterKey])
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+        // Inner shadow
+        if ([options objectForKey: InnerShadowOptionKey]) {
+            CGContextSaveGState(context);
+            
+            NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
+            
+            // Start by clipping to the interior
+            CGContextAddEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
+            
+            CGContextClip(context);
+            
+            // Add bounding
+            CGContextAddRect(context, CGContextGetClipBoundingBox(context));
+            
+            // Add shifted interior by the offset of the inner shadow
+            CGContextAddEllipseInRect(context, CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue], 
+                                                          origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue], 
+                                                          size.width, size.height));
+            
+            // Set the color and opacity
+            if ([dictionary objectForKey: ColorParameterKey]) {
+                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            }
+            
+            if ([dictionary objectForKey: AlphaParameterKey]) {
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            }
+            
+            // Set blend mode
+            if ([dictionary objectForKey: BlendModeParameterKey]) {
+                TKContextSetBlendModeForString(context, [dictionary objectForKey: BlendModeParameterKey]);
+            }
+            
+            // Fill by using EO rule
+            CGContextEOFillPath(context);
+            
+            CGContextRestoreGState(context);
+        }
         
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-        else
-            CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
+        // Strokes
+        // Outer
+        if ([options objectForKey: OuterStrokeOptionKey]) {
+            CGContextSaveGState(context);
+            
+            // Parameters
+            NSDictionary *dictionary = [options objectForKey: OuterStrokeOptionKey];
+            
+            // Stroke width
+            CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
+            
+            // There is a stroke, add the ellipse to stroke
+            CGContextAddEllipseInRect(context, CGRectMake(origin.x - strokeWidth / 2.0, origin.y - strokeWidth / 2.0, size.width + strokeWidth, size.height + strokeWidth));
+            
+            if ([dictionary objectForKey: AlphaParameterKey])
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            
+            if ([dictionary objectForKey: ColorParameterKey])
+                CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            else
+                CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
+            
+            // Stroke
+            TKContextStrokePathWithOptions(context, dictionary);
+            
+            CGContextRestoreGState(context);
+        }
         
-        // Set the width
-        CGContextSetLineWidth(context, strokeWidth);
-        
-        // Stroke it
-        CGContextStrokePath(context);
-        
-        CGContextRestoreGState(context);
-    }
+        // Inner
+        if ([options objectForKey: InnerStrokeOptionKey]) {
+            CGContextSaveGState(context);
+            
+            // Parameters
+            NSDictionary *dictionary = [options objectForKey: InnerStrokeOptionKey];
+            
+            // Stroke width
+            CGFloat strokeWidth = [[dictionary objectForKey: WidthParameterKey] floatValue];
+            
+            // Add the ellipse
+            CGContextAddEllipseInRect(context, CGRectMake(origin.x + strokeWidth / 2.0, origin.y + strokeWidth / 2.0, size.width - strokeWidth, size.height - strokeWidth));
+            
+            if ([dictionary objectForKey: AlphaParameterKey])
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            
+            if ([dictionary objectForKey: ColorParameterKey])
+                CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            else
+                CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
+            
+            // Stroke the path
+            TKContextStrokePathWithOptions(context, dictionary);
+            
+            CGContextRestoreGState(context);
+        }
+    };
     
-    // Wrap up and return the image
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    
-    // Store into cache
+    // Store the block into cache
     if (_isCached)
-        [_cache setObject: image forKey: options];
+        [_cache setObject: Block_copy(drawBlock) forKey: options];
     
-    UIImageView *result = [[[UIImageView alloc] initWithImage: image] autorelease];
-    result.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, result.frame.size.width, result.frame.size.height);
-    
-    return result;
+    // Wrap up and create the view
+    TKView *view = [TKView viewWithFrame: CGRectMake(canvasRect.origin.x, canvasRect.origin.y, 
+                                                     canvasRect.size.width, canvasRect.size.height) 
+                         andDrawingBlock: drawBlock];
+        
+    return view;
 }
 
-- (UIImageView *)lineFromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint options:(NSDictionary *)options {
-    // Stroke width
-    CGFloat strokeWidth = [[options objectForKey: WidthParameterKey] floatValue];
-
-    // Construct the frame for the line
-    CGPoint origin = CGPointMake(MIN(fromPoint.x, toPoint.x) - strokeWidth / 2.0, MIN(fromPoint.y, toPoint.y) - strokeWidth / 2.0);
-    if (toPoint.x == fromPoint.x) {
-        origin.y += strokeWidth / 2.0;
-    } else if (toPoint.y == fromPoint.y) {
-        origin.x += strokeWidth / 2.0;
-    }
-    
-    CGRect frame = CGRectMake(origin.x, origin.y, MAX(MAX(fromPoint.x, toPoint.x) - origin.x, strokeWidth), MAX(MAX(fromPoint.y, toPoint.y) - origin.y, strokeWidth));
-        
-    CGRect canvasRect = frame;
-    origin = CGPointMake(0.0, 0.0);
-    
-    // Check if shadow is present, if it is, adjust the canvas
-    if ([options objectForKey: DropShadowOptionKey]) {
-        // Adjust the canvasrect, first get the property dictionary
-        NSDictionary *shadow = [options objectForKey: DropShadowOptionKey];
-        
-        CGRect shadowRect = [self shadowRectForRect: frame andOptions: shadow];
-        
-        // Union into the canvas
-        canvasRect = CGRectUnion(canvasRect, shadowRect);
-    }
-    
-    // Check cache
-    if (_isCached && [_cache objectForKey: options]) {
-        UIImageView *result = [[[UIImageView alloc] initWithImage: [_cache objectForKey: options]] autorelease];
-        result.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, result.frame.size.width, result.frame.size.height);
-        
-        return result;
-    }
-    
-    // Adjust the inner origin, this is where the actual view is located
-    origin.x = frame.origin.x - canvasRect.origin.x;
-    origin.y = frame.origin.y - canvasRect.origin.y;
-        
-    // Setup the context
-    UIGraphicsBeginImageContextWithOptions(canvasRect.size, NO, [[UIScreen mainScreen] scale]);
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    
-    // Alpha
-    if ([options objectForKey: AlphaParameterKey]) {
-        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
-    }
-    
-    // Start by drawing the main shape
-    // Start with the main inner view
-    CGContextSaveGState(context);
-    
-    // If shadow needed, draw it
-    if ([options objectForKey: DropShadowOptionKey]) {
-        NSDictionary *offsetOptions = [[options objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
-        NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
-        
-        CGSize offset = CGSizeMake([[offsetOptions objectForKey: XCoordinateParameterKey] floatValue], [[offsetOptions objectForKey: YCoordinateParameterKey] floatValue]);        
-        CGFloat blur = 0.0;
-        if ([[dictionary objectForKey: BlurParameterKey] floatValue]) {
-            blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
-        }
-        
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        CGFloat alpha = 1.0;
-        
-        if ([dictionary objectForKey: AlphaParameterKey])
-            alpha = [[dictionary objectForKey: AlphaParameterKey] floatValue];
-        
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]] colorWithAlphaComponent: alpha].CGColor);
-        else
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor blackColor] colorWithAlphaComponent: alpha].CGColor);
-    }
-    
-    // Check if blend mode is present
-    if ([options objectForKey: BlendModeParameterKey]) {
-        // Get the blend mode and apply it to the context
-        CGContextSetBlendMode(context, [self blendModeForString: [options objectForKey: BlendModeParameterKey]]);
-    }
-    
-    // Load in the fill color
-    if ([options objectForKey: ColorParameterKey])
-        CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
-    else
-        CGContextSetStrokeColorWithColor(context, [UIColor whiteColor].CGColor);
-        
-    // Create the path and stroke it
-    CGContextMoveToPoint(context, fromPoint.x - frame.origin.x + origin.x, fromPoint.y - frame.origin.y + origin.y);
-    CGContextAddLineToPoint(context, toPoint.x - frame.origin.x + origin.x,
-                            toPoint.y - frame.origin.y + origin.y);
-    
-    CGContextSetLineWidth(context, strokeWidth);
-    CGContextStrokePath(context);
-    
-    CGContextRestoreGState(context);
-        
-    // Wrap up and return the image
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    
-    // Store into cache
-    if (_isCached)
-        [_cache setObject: image forKey: options];
-    
-    UIImageView *result = [[[UIImageView alloc] initWithImage: image] autorelease];
-    
-    if (toPoint.x == fromPoint.x) {
-        result.frame = CGRectMake(frame.origin.x, frame.origin.y - fmodf(strokeWidth, 2.0) * 0.5, result.frame.size.width, result.frame.size.height); 
-    } else if (toPoint.y == fromPoint.y) {
-        result.frame = CGRectMake(frame.origin.x - fmodf(strokeWidth, 2.0) * 0.5, frame.origin.y, result.frame.size.width, result.frame.size.height); 
-    } else {
-        result.frame = CGRectMake(frame.origin.x, frame.origin.y, result.frame.size.width, result.frame.size.height); 
-    }
-    
-    return result;
-}
-
-- (UIImageView *)pathForOptions: (NSDictionary *)options {
-    // Get the path described
-    CGMutablePathRef mainPath = [self newPathForSVGSyntax: [options objectForKey: PathDescriptionKey]];
-    
-    // Create a frame based on the extremes of the path
-    CGRect frame = CGPathGetBoundingBox(mainPath);
+- (TKView *)pathAtOrigin: (CGPoint)start forOptions: (NSDictionary *)options {
+    // Get the path described (__block as it will be mentioned within the drawingblock)
+    __block CGMutablePathRef mainPath = [self pathForSVGSyntax: [options objectForKey: PathDescriptionKey]];
     
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
+    
+    // Calculate the needed size for the rect
+    CGRect bounding = CGPathGetBoundingBox(mainPath);
+    
+    // First determine the top left corner (the origin)
+    CGPoint minBounding = bounding.origin;
+    CGPoint topLeft = CGPointMake(MIN(minBounding.x, start.x), MIN(minBounding.y, start.y));
+    CGPoint bottomRight = CGPointMake(CGRectGetMaxX(bounding), CGRectGetMaxY(bounding));
+    CGRect frame = CGRectMake(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+    
+    // Store the size
     CGSize size = frame.size;
     
-    // Additionally keep track of the canvasrect
+    // Adjust the drawing origin
+    origin.x = topLeft.x - minBounding.x;
+    origin.y = topLeft.y - minBounding.y;
+    
+    // Additionally keep track of the canvasrect, starts being the main frame
     CGRect canvasRect = frame;
     
     // If outer stroke, enlarge the frame
@@ -1042,7 +1006,7 @@
         CGFloat strokeWidth = [[[options objectForKey: OuterStrokeOptionKey] objectForKey: WidthParameterKey] floatValue];
         
         // Create a stroke rect
-        CGRect strokeRect = [self strokeRectForRect: frame andWidth: strokeWidth];
+        CGRect strokeRect = TKStrokeRectForRectAndWidth(frame, strokeWidth);
         
         // Find a union between the canvas and stroke rect
         canvasRect = CGRectUnion(canvasRect, strokeRect);
@@ -1052,7 +1016,7 @@
     if ([options objectForKey: DropShadowOptionKey]) {
         // Create a special frame for the shadow
         NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
-        CGRect shadowRect = [self shadowRectForRect: frame andOptions: dictionary];
+        CGRect shadowRect = TKShadowRectForRectAndOptions(frame, dictionary);
         
         // Find the union between canvas and shadow
         canvasRect = CGRectUnion(canvasRect, shadowRect);
@@ -1061,220 +1025,154 @@
     // Now as we have the frame, check cache for a view with same properties
     // As a key use the NSDictionary of the description
     if (_isCached && [_cache objectForKey: options]) {
-        UIImageView *result = [[[UIImageView alloc] initWithImage: [_cache objectForKey: options]] autorelease];
-        result.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, result.frame.size.width, result.frame.size.height);
+        TKDrawingBlock drawBlock = [_cache objectForKey: options];
+        TKView *view = [TKView viewWithFrame: CGRectMake(canvasRect.origin.x, canvasRect.origin.y, 
+                                                         canvasRect.size.width, canvasRect.size.height)
+                             andDrawingBlock: drawBlock];
         
-        return result;
+        return view;
     }
     
     // Adjust the inner origin, this is where the actual view is located
     origin.x = frame.origin.x - canvasRect.origin.x;
     origin.y = frame.origin.y - canvasRect.origin.y;
-        
-    // Setup the context
-    CGRect rect = CGRectMake(0.0, 0.0, canvasRect.size.width, canvasRect.size.height);
-    UIGraphicsBeginImageContextWithOptions(rect.size, NO, 
-                                           [[UIScreen mainScreen] scale]);
-    CGContextRef context = UIGraphicsGetCurrentContext();
     
-    // Alpha
-    if ([options objectForKey: AlphaParameterKey]) {
-        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
-    }
-    
-    // Drawing code
-    // Start with the main inner view
-    CGContextSaveGState(context);
-    
-    // If shadow needed, draw it
-    if ([options objectForKey: DropShadowOptionKey]) {
-        NSDictionary *offsetOptions = [[options objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
-        NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
-        
-        CGSize offset = CGSizeMake([[offsetOptions objectForKey: XCoordinateParameterKey] floatValue], [[offsetOptions objectForKey: YCoordinateParameterKey] floatValue]);
-        CGFloat blur = 0.0;
-        
-        // Adjust blur if key is present
-        if ([[dictionary objectForKey: BlurParameterKey] floatValue]) {
-            blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
-        }
-        
-        // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
-        }
-        
-        CGFloat alpha = 1.0;
-        
-        if ([dictionary objectForKey: AlphaParameterKey])
-            alpha = [[dictionary objectForKey: AlphaParameterKey] floatValue];
-        
-        if ([dictionary objectForKey: ColorParameterKey])
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]] colorWithAlphaComponent: alpha].CGColor);
-        else
-            CGContextSetShadowWithColor(context, offset, blur, [[UIColor blackColor] colorWithAlphaComponent: alpha].CGColor);
-    }
-    
-    // Check if blend mode is present
-    if ([options objectForKey: BlendModeParameterKey]) {
-        // Get the blend mode and apply it to the context
-        CGContextSetBlendMode(context, [self blendModeForString: [options objectForKey: BlendModeParameterKey]]);
-    }
-    
-    // Load in the fill color
-    if ([options objectForKey: ColorParameterKey])
-        CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
-    else
-        CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
-    
-    // Fill the path
-    CGContextAddPath(context, mainPath);
-    CGContextFillPath(context);
-    
-    CGContextRestoreGState(context);
-    
-    // Check if gradient is present, if so draw it over the fill
-    if ([options objectForKey: GradientFillOptionKey]) {        
+    // Create the drawing block
+    TKDrawingBlock drawBlock = ^(CGContextRef context) {
+        // Drawing code
+        // Start with the main inner view
         CGContextSaveGState(context);
         
-        NSDictionary *dictionary = [options objectForKey: GradientFillOptionKey];
-        
-        // Gradient is present, first clip the context
+        // Adjust the path for the origin
+        CGAffineTransform transform = CGAffineTransformMakeTranslation(origin.x, origin.y);
+        mainPath = CGPathCreateMutableCopyByTransformingPath(mainPath, &transform);
+        [(id)mainPath autorelease];
         CGContextAddPath(context, mainPath);
-        CGContextClip(context);
+        
+        // If shadow needed, draw it
+        if ([options objectForKey: DropShadowOptionKey]) {
+            NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];        
+            TKContextAddShadowWithOptions(context, dictionary);
+        }
+        
+        // Alpha
+        if ([options objectForKey: AlphaParameterKey]) {
+            CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
+        }
         
         // Check if blend mode is present
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
+        if ([options objectForKey: BlendModeParameterKey]) {
             // Get the blend mode and apply it to the context
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
+            TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
         }
         
-        // Check if alpha is present
-        if ([dictionary objectForKey: AlphaParameterKey]) {
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]); 
-        }
+        // Load in the fill color
+        if ([options objectForKey: ColorParameterKey])
+            CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
+        else
+            CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
         
-        // Create the gradient
-        // First the colors
-        NSArray *colors = [dictionary objectForKey: GradientColorsParameterKey];
-        NSMutableArray *CGColors = [NSMutableArray arrayWithCapacity: [colors count]];
-        [colors enumerateObjectsWithOptions: NSEnumerationConcurrent
-                                 usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                     [CGColors insertObject: (id)[UIColor colorForWebColor: (NSString *)obj].CGColor atIndex: idx]; }];
-        
-        // And then the locations
-        colors = [dictionary objectForKey: GradientPositionsParameterKey];
-        __block CGFloat *positions = (CGFloat *)calloc(sizeof(CGFloat), [colors count]);
-        [colors enumerateObjectsWithOptions: NSEnumerationConcurrent 
-                                 usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-                                     positions[idx] = [(NSNumber *)obj floatValue]; }];
-        
-        CGGradientRef gradient = [self newGradientForColors: CGColors andLocations: positions];
-        
-        //Draw the gradient
-        CGContextDrawLinearGradient(context, gradient, CGPointMake(origin.x, origin.y), CGPointMake(origin.x, origin.y + size.height), 0);
-        
-        // Release the gradient
-        CGGradientRelease(gradient);
+        // Fill the path
+        CGContextFillPath(context);
         
         CGContextRestoreGState(context);
-    }
-    
-    // Inner shadow
-    if ([options objectForKey: InnerShadowOptionKey]) {
-        CGContextSaveGState(context);
         
-        NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
-        
-        // Start by clipping to the interior
-        CGContextAddPath(context, mainPath);            
-        CGContextClip(context);
-        
-        // Add bounding
-        CGContextAddRect(context, CGContextGetClipBoundingBox(context));
-        
-        // Add shifted interior by the offset of the inner shadow
-        NSDictionary *offset = [dictionary objectForKey: OffsetParameterKey];
-        CGAffineTransform transform = CGAffineTransformMakeTranslation([[offset objectForKey: XCoordinateParameterKey] floatValue],
-                                                                       [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-        CGContextAddPath(context, CGPathCreateCopyByTransformingPath(mainPath, &transform));
-        
-        // Set the color and opacity
-        if ([dictionary objectForKey: ColorParameterKey]) {
-            CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+        // Check if gradient is present, if so draw it over the fill
+        if ([options objectForKey: GradientFillOptionKey]) {        
+            CGContextSaveGState(context);
+            
+            // Gradient is present, first clip the context
+            CGContextAddPath(context, mainPath);
+            CGContextClip(context);
+            
+            // Draw the gradient
+            NSDictionary *dictionary = [options objectForKey: GradientFillOptionKey];
+            
+            TKContextDrawGradientForOptions(context, dictionary, CGPointMake(origin.x, origin.y), CGPointMake(origin.x, origin.y + size.height));
+            
+            CGContextRestoreGState(context);
         }
         
-        if ([dictionary objectForKey: AlphaParameterKey]) {
-            CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+        // Inner shadow
+        if ([options objectForKey: InnerShadowOptionKey]) {
+            CGContextSaveGState(context);
+            
+            NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
+            
+            // Start by clipping to the interior
+            CGContextAddPath(context, mainPath);            
+            CGContextClip(context);
+            
+            // Add bounding
+            CGContextAddRect(context, CGContextGetClipBoundingBox(context));
+            
+            // Add shifted interior by the offset of the inner shadow
+            NSDictionary *offset = [dictionary objectForKey: OffsetParameterKey];
+            CGAffineTransform transform = CGAffineTransformMakeTranslation([[offset objectForKey: XCoordinateParameterKey] floatValue],
+                                                                           [[offset objectForKey: YCoordinateParameterKey] floatValue]);
+            CGPathRef transformedPath = CGPathCreateCopyByTransformingPath(mainPath, &transform);
+            CGContextAddPath(context, transformedPath);
+            CGPathRelease(transformedPath);
+            
+            // Set the color and opacity
+            if ([dictionary objectForKey: ColorParameterKey]) {
+                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            }
+            
+            if ([dictionary objectForKey: AlphaParameterKey]) {
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            }
+            
+            // Set blend mode
+            if ([dictionary objectForKey: BlendModeParameterKey]) {
+                TKContextSetBlendModeForString(context, [dictionary objectForKey: BlendModeParameterKey]);
+            }
+            
+            // Fill by using EO rule
+            CGContextEOFillPath(context);
+            
+            CGContextRestoreGState(context);
         }
         
-        // Set blend mode
-        if ([dictionary objectForKey: BlendModeParameterKey]) {
-            CGContextSetBlendMode(context, [self blendModeForString: [dictionary objectForKey: BlendModeParameterKey]]);
+        // Strokes
+        // Outer
+        if ([options objectForKey: OuterStrokeOptionKey]) {
+            CGContextSaveGState(context);
+            
+            // Parameters
+            NSDictionary *dictionary = [options objectForKey: OuterStrokeOptionKey];
+            
+            // There is a stroke, add the path to stroke
+            CGContextAddPath(context, mainPath);
+            
+            if ([dictionary objectForKey: AlphaParameterKey])
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            
+            if ([dictionary objectForKey: ColorParameterKey])
+                CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            
+            // Stroke
+            TKContextStrokePathWithOptions(context, dictionary);
+            
+            CGContextRestoreGState(context);
         }
-        
-        // Fill by using EO rule
-        CGContextEOFillPath(context);
-        
-        CGContextRestoreGState(context);
-    }
+    };   
     
-    // Release memory
-    CGPathRelease(mainPath);
+    // Cache the block if needed
+    if (_isCached) 
+        [_cache setObject: Block_copy(drawBlock) forKey: options];
     
-    // Wrap up and return the image
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    
-    // Store into cache, if needed. Use the same key created before
-    if (_isCached)
-        [_cache setObject: image forKey: options];
-    
-    // Create the view and return it
-    UIImageView *view = [[[UIImageView alloc] initWithImage: image] autorelease];
-    view.frame = CGRectMake(canvasRect.origin.x, canvasRect.origin.y, view.frame.size.width, view.frame.size.height);
+    // Create and return the view
+    TKView *view = [TKView viewWithFrame: CGRectMake(canvasRect.origin.x, canvasRect.origin.y, 
+                                                     canvasRect.size.width, canvasRect.size.height)
+                         andDrawingBlock: drawBlock];
     
     return view;
 }
 
-- (void)balanceCornerRadiuses: (CGFloat *)radii toFitIntoSize: (CGSize)size {
-    // This method is passed an array of floats always 4 long, compare each pair
-    // The order is top-right bottom-right bottom-left top-left (clockwise, beginning in the top-right)
-    CGFloat topright = radii[0];
-    CGFloat bottomright = radii[1];
-    CGFloat bottomleft = radii[2];
-    CGFloat topleft = radii[3];
-    
-    // None should be larger than half of the either side
-    // (as they both connect the width to height, we need to make 8 comparisons)
-    CGFloat halfWidth = roundf(size.width / 2.0);
-    CGFloat halfHeight = roundf(size.height / 2.0);
-    
-    // Top right
-    topright = topright > halfWidth ? halfWidth : topright;
-    topright = topright > halfHeight ? halfHeight : topright;
-    
-    // Bottom right
-    bottomright = bottomright > halfWidth ? halfWidth : bottomright;
-    bottomright = bottomright > halfHeight ? halfHeight : bottomright;
+#pragma mark - Path related
 
-    // Bottom left
-    bottomleft = bottomleft > halfWidth ? halfWidth : bottomleft;
-    bottomleft = bottomleft > halfHeight ? halfHeight : bottomleft;
-
-    // Top left
-    topleft = topleft > halfWidth ? halfWidth : topleft;
-    topleft = topleft > halfHeight ? halfHeight : topleft;
-    
-    // Adjust the passed array
-    radii[0] = topright;
-    radii[1] = bottomright;
-    radii[2] = bottomleft;
-    radii[3] = topleft;
-}
-
-- (CGMutablePathRef)newPathForSVGSyntax:(NSString *)description {
+- (CGMutablePathRef)pathForSVGSyntax:(NSString *)description {
     // First convert the string into commands
     NSArray *commands = [self arrayOfPathCommandsFromSVGDescription: description];
     
@@ -1314,60 +1212,8 @@
         }
     }
     
+    [(id)path autorelease];
     return path;
-}
-
-- (CGMutablePathRef)newRoundedPathForRect: (CGRect)rect withRadiuses: (CGFloat *)radii {
-    CGMutablePathRef roundedPath = CGPathCreateMutable();
-    CGPathMoveToPoint(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y + radii[3], 
-                 radii[3], -M_PI / 2.0, M_PI, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x, rect.origin.y + rect.size.height - radii[2]);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + radii[2], rect.origin.y + rect.size.height - radii[2], 
-                 radii[2], M_PI, M_PI / 2.0, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + rect.size.width - radii[1], rect.origin.y + rect.size.height);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + rect.size.width - radii[1], rect.origin.y + rect.size.height - radii[1], 
-                 radii[1], M_PI / 2.0, 0.0f, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + rect.size.width, rect.origin.y + radii[0]);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + rect.size.width - radii[0], rect.origin.y + radii[0],
-                 radii[0], 0.0f, -M_PI / 2.0, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y);
-    
-    return roundedPath;
-}
-
-- (CGGradientRef)newGradientFromColor: (UIColor *)fromColor toColor: (UIColor *)toColor beginningAt: (CGFloat)begin ending: (CGFloat)end {
-    CGColorSpaceRef rgbSpace = CGColorSpaceCreateDeviceRGB();
-	CGFloat locations[2] = { begin, end };
-    NSArray *colors = [NSArray arrayWithObjects: (id)fromColor.CGColor, (id)toColor.CGColor, nil];
-	CGGradientRef gradient = CGGradientCreateWithColors(rgbSpace, (CFArrayRef)colors, locations);
-    CGColorSpaceRelease(rgbSpace);
-        
-    return gradient;
-}
-
-- (CGGradientRef)newGradientForColors: (NSArray *)CGColors andLocations: (CGFloat[])locations {
-    CGColorSpaceRef rgbSpace = CGColorSpaceCreateDeviceRGB();
-	CGGradientRef gradient = CGGradientCreateWithColors(rgbSpace, (CFArrayRef)CGColors, locations);
-    CGColorSpaceRelease(rgbSpace);
-    
-    return gradient;
-}
-
-- (CGBlendMode)blendModeForString: (NSString *)key {
-    if ([key isEqualToString: @"overlay"]) {
-        return kCGBlendModeOverlay;
-    } else if ([key isEqualToString: @"multiply"]) {
-        return kCGBlendModeMultiply;
-    } else if ([key isEqualToString: @"softlight"]) {
-        return kCGBlendModeSoftLight;
-    } else {
-        return kCGBlendModeNormal;
-    }
 }
 
 - (NSArray *)arrayOfPathCommandsFromSVGDescription: (NSString *)description {
@@ -1392,9 +1238,6 @@
     
     // Scan the string until we reach the end of it
     while (![scanner isAtEnd]) {
-        // First run over any non-relevant symbols
-        [scanner scanCharactersFromSet: nonrelevant intoString: NULL];
-        
         // First grab the starting letter
         [scanner scanCharactersFromSet: [NSCharacterSet letterCharacterSet] intoString: &temp];
         
@@ -1786,45 +1629,7 @@
     return pointHolder;
 }
 
-- (CGRect)shadowRectForRect: (CGRect)frame andOptions: (NSDictionary *)options {
-    NSDictionary *offsetDictionary = [options objectForKey: OffsetParameterKey];
-    CGSize offset = CGSizeMake([[offsetDictionary objectForKey: XCoordinateParameterKey] floatValue], [[offsetDictionary objectForKey: YCoordinateParameterKey] floatValue]);
-    CGFloat blur = [[options objectForKey: BlurParameterKey] floatValue];
-    
-    // Create the shadow rect
-    CGRect shadowRect = frame;
-    
-    CGPoint shadowOrigin = shadowRect.origin;
-    shadowOrigin.x += offset.width - blur;
-    shadowOrigin.y += offset.height - blur;
-    shadowRect.origin = shadowOrigin;
-    
-    CGSize shadowSize = shadowRect.size;
-    shadowSize.width += 2 * blur;
-    shadowSize.height += 2 * blur;
-    shadowRect.size = shadowSize;
-    
-    // Return the resulting rect
-    return shadowRect;
-}
-
-- (CGRect)strokeRectForRect: (CGRect)frame andWidth: (CGFloat)strokeWidth {
-    // Create a stroke rect
-    CGRect strokeRect = frame;
-    CGPoint strokeOrigin = strokeRect.origin;
-    strokeOrigin.x -= strokeWidth;
-    strokeOrigin.y -= strokeWidth;
-    strokeRect.origin = strokeOrigin;
-    
-    CGSize strokeSize = strokeRect.size;
-    strokeSize.width += 2 * strokeWidth;
-    strokeSize.height += 2 * strokeWidth;
-    strokeRect.size = strokeSize;
-    
-    // Return the result
-    return strokeRect;
-}
-
+#pragma mark - Cache
 
 - (void)flushCache {    
     // Simply empty out the cache dictionary
@@ -1929,18 +1734,54 @@
         NSArray *options = [JSONDictionary objectForKey: SubviewSectionKey];
         
         // Add them all as subviews
-        NSArray *views = [self viewsForDescriptions: options];
-        [views enumerateObjectsWithOptions: NSEnumerationConcurrent usingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-            [view insertSubview: obj atIndex: idx];
-        }];
+        [self addSubviewsWithDescriptions: options toView: view];
     }
     
     // If cache enabled, store the final view (additional layer of caching, incase an identical view hierarchy is used later)
     if (_isCached) {
         [_cache setObject: view forKey: JSONData];
     }
-    
+        
     return view;
+}
+
+- (UIImage *)compressedImageForView: (UIView *)view {
+    // Create a suitable context and draw the view's layer into it (iOS 4 > uses the scaled version)
+    if (NULL != UIGraphicsBeginImageContextWithOptions)
+        UIGraphicsBeginImageContextWithOptions(view.frame.size, NO, [[UIScreen mainScreen] scale]);
+    else
+        UIGraphicsBeginImageContext(view.frame.size);
+    
+    // Grab the context
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    
+    // -renderInContext: renders in the coordinate space of the layer,
+    // so we must first apply the layer's geometry to the graphics context 
+    // (i.e move the context to where the layer is)
+    CGContextSaveGState(context);
+    // Center the context around the view's anchor point
+    //CGContextTranslateCTM(context, [view center].x, [view center].y);
+    // Apply the view's transform about the anchor point
+    //CGContextConcatCTM(context, [view transform]);
+    // Offset by the portion of the bounds left of and above the anchor point
+    /*CGContextTranslateCTM(context, 
+                          -[view bounds].size.width * [[view layer] anchorPoint].x,
+                          -[view bounds].size.height * [[view layer] anchorPoint].y);*/
+    
+    // Render the layer hierarchy to the current context
+    [[view layer] renderInContext:context];
+    
+    // Restore the context
+    CGContextRestoreGState(context);
+    
+    // Retrieve the screenshot image
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    
+    UIGraphicsEndImageContext();
+    
+    NSLog(@"View frame: %@ image size: %@", NSStringFromCGRect(view.frame), NSStringFromCGSize(image.size));
+    
+    return image;
 }
 
 - (void)dealloc {

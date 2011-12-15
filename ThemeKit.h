@@ -5,8 +5,22 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 
 #import "JSONKit.h"
+
+#pragma mark - UIColor extension
+
+@interface UIColor (Extensions)
+
+// Method for converting web hex color into a UIColor object, pass in a string similar to "FFFFFF" or "#FFFFFF"
+// If less than six characters long, will be used as a pattern - "FFA" will result in "FFAFFA" and "FFFA" results in "FFFAFF"
++ (UIColor *)colorForWebColor: (NSString *)colorCode;
+
+// Reverse of the first method, returning a hex value of a UIColor
+- (NSString *)hexValue;
+
+@end
 
 #pragma mark - Keys for drawing
 
@@ -19,6 +33,7 @@ static NSString *const RectangleTypeKey = @"rectangle";
 static NSString *const EllipseTypeKey = @"ellipse";
 static NSString *const PathTypeKey = @"path";
 static NSString *const LabelTypeKey = @"label";
+static NSString *const ButtonTypeKey = @"button";
 
 // First some major parameters, that will have additional subparameters
 static NSString *const InnerStrokeOptionKey = @"inner-stroke";
@@ -84,5 +99,8 @@ static NSString *const CornerRadiusParameterKey = @"corner-radius";     // Can b
 
 // Secondary generator, uses caching on both the solution and the data given (both point to same image in the cache)
 - (UIView *)viewHierarchyForJSONAtPath: (NSString *)path;
+
+// Another helpful method, will turn any given UIView hierarchy into a UIImage
+- (UIImage *)compressedImageForView: (UIView *)view;
 
 @end
