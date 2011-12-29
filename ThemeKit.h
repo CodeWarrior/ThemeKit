@@ -49,13 +49,32 @@ static NSString *const OriginParameterKey = @"origin";
 static NSString *const AlphaParameterKey = @"alpha";
 static NSString *const SizeParameterKey = @"size";
 static NSString *const BlendModeParameterKey = @"blend-mode";
+static NSString *const BindingVariableName = @"bind-to";    // Additional bindings dictionary will be returned,
+                                                            // where specific views will be accessable under specified names (similar to IBOutlet)
+static NSString *const ContainerParameterKey = @"is-container"; // When set, the view is not drawn and is simply there for hierarchical reasons.
+                                                                // only checked for rectangle (the rest wouldn't make sense to be used as containers)
 
 // Label content
 static NSString *const ContentStringParameterKey = @"content-string";
+static NSString *const ContentColorParameterKey = @"content-color";
+static NSString *const ContentGradientParameterKey = @"content-gradient-fill";
+static NSString *const ContentShadowParameterKey = @"content-shadow";
+static NSString *const ContentAlignmentParameterKey = @"content-align";
 static NSString *const ContentFontSizeParameterKey = @"font-size";
 static NSString *const ContentFontNameParameterKey = @"font-name";
 static NSString *const ContentFontWeightParameterKey = @"font-weight";
-static NSString *const ContentAlignmentParameterKey = @"content-align";
+
+// Button images/views
+static NSString *const ButtonNormalStateView = @"normal-state";
+static NSString *const ButtonHighlightedStateView = @"highlighted-state";
+static NSString *const ButtonSelectedStateView = @"selected-state";
+static NSString *const ButtonHighlightedSelectedStateView = @"highlighted-selected-state";  // If not present, but highlighted-state is, then that will be used for both
+static NSString *const ButtonDisabledStateView = @"disabled-state";
+
+static NSString *const ButtonViewStretchable = @"stretchable-edges";
+static NSString *const ButtonContentImage = @"content-image";   // The image, displayed to the right of the label
+static NSString *const ButtonContentInsets = @"content-insets"; // Insets are either arrays with 4 values or single value to be used for all sides
+static NSString *const ButtonContentImageInsets = @"content-image-insets";
 
 // Path description
 static NSString *const PathDescriptionKey = @"description";
@@ -63,20 +82,16 @@ static NSString *const PathDescriptionKey = @"description";
 // Sizes
 static NSString *const WidthParameterKey = @"width";
 static NSString *const HeightParameterKey = @"height";
+static NSString *const OffsetParameterKey = @"offset";
 
 // Drop shadow
-static NSString *const OffsetParameterKey = @"offset";
 static NSString *const BlurParameterKey = @"blur";
-
-// Line positioning
-static NSString *const StartPointParameterKey = @"start-point";
-static NSString *const EndPointParameterKey = @"end-point";
 
 // Gradients
 static NSString *const GradientColorsParameterKey = @"gradient-colors";
 static NSString *const GradientPositionsParameterKey = @"gradient-positions";
 
-// Position, gradient start and end (inside)
+// Position
 static NSString *const XCoordinateParameterKey = @"x";
 static NSString *const YCoordinateParameterKey = @"y";
 
@@ -85,20 +100,26 @@ static NSString *const CornerRadiusParameterKey = @"corner-radius";     // Can b
 
 #pragma mark - ThemeView Header
 
-@interface ThemeKit : NSObject {    
+@interface ThemeKit : NSObject {
     BOOL _isCached;
-    NSMutableDictionary *_cache; // Contains UIImages/UIViews for NSDictionary descriptions of the view/part of it
-    // Two tiered cache is used, first it checks if the entire description has been already drawn, if not, it also checks for each view separately
+    
+    // Contains cached drawingblocks for TKViews, 
+    // this is to make sure each caching returns a new view not one already in use
+    NSMutableDictionary *_cache;
+    
+    // Secondary cache used to avoid deserializing files at paths
+    // will cache the resulting JSON dictionary, which in turn will produce cached blocks (if possible)
+    NSMutableDictionary *_JSONCache;
 }
 
 // Main initializer, used as a singleton
 + (ThemeKit *)defaultEngine;
 
 // Main generator, uses caching on the solution, not the data
-- (UIView *)viewHierarchyFromJSON: (NSData *)JSONData;
+- (UIView *)viewHierarchyFromJSON: (NSData *)JSONData bindings: (NSDictionary **)bindings;
 
-// Secondary generator, uses caching on both the solution and the data given (both point to same image in the cache)
-- (UIView *)viewHierarchyForJSONAtPath: (NSString *)path;
+// Secondary generator, just as a convienience
+- (UIView *)viewHierarchyForJSONAtPath: (NSString *)path bindings: (NSDictionary **)bindings;
 
 // Another helpful method, will turn any given UIView hierarchy into a UIImage
 - (UIImage *)compressedImageForView: (UIView *)view;

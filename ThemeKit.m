@@ -103,15 +103,23 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect);
 
 @interface ThemeKit (DrawingExtensions)
 
+- (UIView *)viewHierarchyForJSONDictionary: (NSDictionary *)JSON bindings: (NSDictionary **)bindings;
+
 #pragma mark - Factory methods
-- (NSArray *)viewsForDescriptions: (NSArray *)descriptions;
-- (UIView *)addSubviewsWithDescriptions: (NSArray *)descriptions toView: (UIView *)view;
-- (UIView *)viewForDescription: (NSDictionary *)description;
+
+- (UIView *)addSubviewsWithDescriptions: (NSArray *)descriptions toView: (UIView *)view bindings: (NSMutableDictionary *)bindings;
+- (UIView *)viewForDescription: (NSDictionary *)description bindings: (NSMutableDictionary *)bindings;
+
+#pragma mark - Quick images
+
+- (UIImage *)patternGradientForGradientProperties: (NSDictionary *)properties height: (NSInteger)height;
 
 #pragma mark - Primitives
 - (TKView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options;      // Rectangle
 - (TKView *)circleInFrame: (CGRect)frame options: (NSDictionary *)options;         // Circle
-- (TKView *)pathAtOrigin: (CGPoint)start forOptions: (NSDictionary *)options;      // Path
+- (TKView *)pathForOptions: (NSDictionary *)options;      // Path
+- (UILabel *)labelInFrame: (CGRect)frame forOptions: (NSDictionary *)options;
+- (UIButton *)buttonInFrame: (CGRect)frame forOptions: (NSDictionary *)options;
 
 // Path, following SVG standard syntax
 - (CGMutablePathRef)pathForSVGSyntax: (NSString *)description;
@@ -212,6 +220,7 @@ void TKContextDrawGradientForOptions(CGContextRef context, NSDictionary *options
     CGColorSpaceRef rgbSpace = CGColorSpaceCreateDeviceRGB();
 	CGGradientRef gradient = CGGradientCreateWithColors(rgbSpace, (CFArrayRef)CGColors, positions);
     CGColorSpaceRelease(rgbSpace);
+    free(positions);
     
     //Draw the gradient
     CGContextDrawLinearGradient(context, gradient, startPoint, endPoint, 0);
@@ -310,24 +319,61 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 
 @implementation ThemeKit (DrawingExtensions)
 
-#pragma mark - Factory methods
-
-- (NSArray *)viewsForDescriptions: (NSArray *)descriptions {
-    // Create a mutable array to store the subviews in
-    NSMutableArray *subviews = [NSMutableArray arrayWithCapacity: [descriptions count]];
-        
-    // Enumerate over the descriptions
-    for (NSDictionary *info in descriptions) {
-        [subviews insertObject: [self viewForDescription: info] atIndex: [descriptions indexOfObject: info]];
+- (UIView *)viewHierarchyForJSONDictionary: (NSDictionary *)JSON bindings: (NSDictionary **)bindings {
+    // Create a dictionary into the bindings
+    NSMutableDictionary *bindDictionary = nil;
+    if (bindings != NULL) {
+        bindDictionary = [NSMutableDictionary dictionary];
     }
     
-    return [NSArray arrayWithArray: subviews];
+    // Next get the size parameters of the main dictionary - that is the size of outermost view
+    CGSize size;
+    if ([JSON objectForKey: SizeParameterKey]) {
+        size = CGSizeMake([[[JSON objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
+                          [[[JSON objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
+    } else {
+        NSLog(@"Error! No size specified for the outermost view, will result in no view being drawn");
+        size = CGSizeZero;
+    }
+    
+    // Grab the origin, if present
+    CGPoint origin;
+    if ([JSON objectForKey: OriginParameterKey]) {
+        origin = CGPointMake([[[JSON objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                             [[[JSON objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
+    } else {
+        // No origin means default to 0.0 0.0
+        origin = CGPointZero;
+    }
+    
+    // Create the container view
+    UIView *view = [[[UIView alloc] initWithFrame: CGRectMake(origin.x, origin.y, size.width, size.height)] autorelease];
+    [view setBackgroundColor: [UIColor clearColor]];
+    
+    if (view) {
+        // Grab the subviews
+        NSArray *options = [JSON objectForKey: SubviewSectionKey];
+        
+        // Add them all as subviews
+        [self addSubviewsWithDescriptions: options toView: view bindings: bindDictionary];
+    }
+    
+    // Check if there is a binding
+    if ([JSON objectForKey: BindingVariableName] && bindings != NULL) {
+        [bindDictionary setObject: view forKey: [JSON objectForKey: BindingVariableName]];
+    }
+    
+    // IF there is a binding, move the temporary dictionary to the final one
+    if (bindings != NULL && [bindDictionary count] > 0) {
+        *bindings = [NSDictionary dictionaryWithDictionary: bindDictionary];
+    }
+    
+    return view;
 }
 
-- (UIView *)addSubviewsWithDescriptions: (NSArray *)descriptions toView: (UIView *)view {
-    // Keep track of the origin, in case we need to adjust it
-    CGPoint origin = CGPointMake(CGRectGetMinX(view.frame), CGRectGetMinY(view.frame));
-    
+#pragma mark - Factory methods
+
+- (UIView *)addSubviewsWithDescriptions: (NSArray *)descriptions toView: (UIView *)view bindings: (NSMutableDictionary *)bindings {    
     // Keep track of the size, in case the subviews have shadows or strokes that otherwise would extend outside
     // our frame
     CGSize finalSize = CGSizeMake(CGRectGetWidth(view.frame), CGRectGetHeight(view.frame));
@@ -335,54 +381,29 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     // Iterate over the descriptions and add the views as subviews
     for (NSDictionary *viewDesc in descriptions) {
         // Add the subview
-        [view insertSubview: [self viewForDescription: viewDesc] atIndex: [descriptions indexOfObject: viewDesc]];
+        UIView *subview = [self viewForDescription: viewDesc bindings: bindings];
         
-        // Check whether the view had a shadow or a stroke, if so adjust the origin
-        CGFloat x, y;
-        if ([viewDesc objectForKey: DropShadowOptionKey]) {
-            NSDictionary *shadow = [viewDesc objectForKey: DropShadowOptionKey];
-            x = [[[shadow objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue];
-            y = [[[shadow objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue];
-            
-            // Only negative offsets affect the origin
-            if (x < 0)
-                origin.x += x;
-            
-            if (y < 0)
-                origin.y += y;
+        if ([view isKindOfClass: [UIButton class]]) {
+            [subview setExclusiveTouch: NO];
+            [subview setUserInteractionEnabled: NO];
         }
         
-        // Stroke
-        if ([viewDesc objectForKey: OuterStrokeOptionKey]) {
-            // Stroke is uniform, hence grab the width
-            CGFloat width = [[[viewDesc objectForKey: OuterStrokeOptionKey] objectForKey: WidthParameterKey] floatValue];
-            
-            // Round up, because fractional width are common (how the paths work)
-            width = ceilf(width);
-            
-            // Check if width changes either of the axis
-            if (width > fabs(x))
-                origin.x -= (width - fabs(x));
-            
-            if (width > fabs(x))
-                origin.y -= (width - fabs(y));
-        }
+        [view insertSubview: subview atIndex: [descriptions indexOfObject: viewDesc] + 1];
         
         // Adjust the finalsize
-        finalSize.width = MAX(finalSize.width, CGRectGetWidth(view.frame));
-        finalSize.height = MAX(finalSize.height, CGRectGetHeight(view.frame));
+        finalSize.width = MAX(finalSize.width, CGRectGetWidth(subview.frame));
+        finalSize.height = MAX(finalSize.height, CGRectGetHeight(subview.frame));
     }
     
     // Adjust the view so that it matches the contents
     CGRect frame = view.frame;
     frame.size = finalSize;
-    frame.origin = origin;
     view.frame = frame;
     
     return view;
 }
 
-- (UIView *)viewForDescription: (NSDictionary *)description {
+- (UIView *)viewForDescription: (NSDictionary *)description bindings: (NSMutableDictionary *)bindings {
     // First start by identifying the type of the view
     NSString *type = [description objectForKey: TypeParameterKey];
     
@@ -406,84 +427,60 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     
     // Depending on the type use the appropriate drawing method
     if ([type isEqualToString: RectangleTypeKey]) {
-        result = [self rectangleInFrame: frame options: description];
+        if ([description objectForKey: ContainerParameterKey]) {
+            if ([[description objectForKey: ContainerParameterKey] boolValue]) {
+                result = [[[UIView alloc] initWithFrame: frame] autorelease];
+            } else {
+                result = [self rectangleInFrame: frame options: description];
+            }
+        } else {
+            result = [self rectangleInFrame: frame options: description];
+        }
     } else if ([type isEqualToString: EllipseTypeKey]) {
         result = [self circleInFrame: frame options: description];
     } else if ([type isEqualToString: PathTypeKey]) {
-        result = [self pathAtOrigin: origin forOptions: description];
+        result = [self pathForOptions: description];
     } else if ([type isEqualToString: LabelTypeKey]) {
-        UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
-        label.backgroundColor = [UIColor clearColor];
-        
-        // Content
-        if ([description objectForKey: ContentStringParameterKey]) {
-            label.text = [description objectForKey: ContentStringParameterKey];
-        }
-        
-        // Alignment
-        if ([description objectForKey: ContentAlignmentParameterKey]) {
-            NSString *alignment = [description objectForKey: ContentAlignmentParameterKey];
-            if ([alignment isEqualToString: @"center"]) {
-                label.textAlignment = UITextAlignmentCenter;
-            } else if ([alignment isEqualToString: @"left"]) {
-                label.textAlignment = UITextAlignmentLeft;
-            } else if ([alignment isEqualToString: @"right"]) {
-                label.textAlignment = UITextAlignmentRight;
-            }
-        }
-        
-        // Text color
-        if ([description objectForKey: ColorParameterKey]) {
-            label.textColor = [UIColor colorForWebColor: [description objectForKey: ColorParameterKey]];
-        }
-        
-        // Alpha
-        if ([description objectForKey: AlphaParameterKey]) {
-            label.alpha = [[description objectForKey: AlphaParameterKey] floatValue];
-        }
-        
-        // Font size & Font
-        if ([description objectForKey: ContentFontSizeParameterKey]) {
-            label.font = [UIFont systemFontOfSize: [[description objectForKey: ContentFontSizeParameterKey] floatValue]];
-        }
-        
-        if ([description objectForKey: ContentFontWeightParameterKey]) {
-            NSString *weight = [description objectForKey: ContentFontWeightParameterKey];
-            
-            if ([weight isEqualToString: @"bold"]) {
-                label.font = [UIFont boldSystemFontOfSize: label.font.pointSize];
-            } else {
-                label.font = [UIFont systemFontOfSize: label.font.pointSize];
-            }
-        } else if ([description objectForKey: ContentFontNameParameterKey]) {
-            label.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize];
-        }
-        
-        // Shadow
-        if ([description objectForKey: DropShadowOptionKey]) {
-            label.shadowColor = [UIColor colorForWebColor: [[description objectForKey: DropShadowOptionKey] objectForKey: ColorParameterKey]];
-            
-            if ([[description objectForKey: DropShadowOptionKey] objectForKey: AlphaParameterKey]) {
-                label.shadowColor = [label.shadowColor colorWithAlphaComponent: [[[description objectForKey: DropShadowOptionKey] objectForKey: AlphaParameterKey] floatValue]];
-            }
-            
-            NSDictionary *offset = [[description objectForKey: DropShadowOptionKey] objectForKey: OffsetParameterKey];
-            label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
-                                            [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-        }
-        
-        result = label;
+        result = [self labelInFrame: frame forOptions: description];
+    } else if ([type isEqualToString: ButtonTypeKey]) {
+        result = [self buttonInFrame: frame forOptions: description];
     } else {
         NSLog(@"Unknown type \"%@\" encountered, ignoring", type);
         return nil;
     }
     
+    // Check if there is a binding
+    if ([description objectForKey: BindingVariableName] && bindings) {
+        // Store the view into the binding dictionary
+        [bindings setObject: result forKey: [description objectForKey: BindingVariableName]];
+    }
+    
     // Check for additional subviews
     if ([description objectForKey: SubviewSectionKey]) {
-        [self addSubviewsWithDescriptions: [description objectForKey: SubviewSectionKey] toView: result];
+        [self addSubviewsWithDescriptions: [description objectForKey: SubviewSectionKey] toView: result bindings: bindings];
     }
-        
+    
     return result;
+}
+
+#pragma mark - Quick images
+
+- (UIImage *)patternGradientForGradientProperties: (NSDictionary *)properties height: (NSInteger)height { 
+    // Start by creating the JSON description
+    NSDictionary *size = [NSDictionary dictionaryWithObjectsAndKeys: [NSNumber numberWithInt: 3], WidthParameterKey, 
+                          [NSNumber numberWithInteger: height], HeightParameterKey, nil];    
+    NSDictionary *view = [NSDictionary dictionaryWithObjectsAndKeys: RectangleTypeKey, TypeParameterKey, 
+                                                                                 size, SizeParameterKey,
+                                                                           properties, GradientFillOptionKey, nil];
+        
+    // Create the image
+    UIImage *image = [self compressedImageForView: 
+                      [self viewForDescription: view bindings: NULL]];
+    
+    // Make it stretchable
+    image = [image stretchableImageWithLeftCapWidth: 1.0 topCapHeight: height - 1.0];
+    
+    return image;
 }
 
 #pragma mark - Primitives
@@ -521,7 +518,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     // As a key use the NSDictionary
     if (_isCached && [_cache objectForKey: options]) {
         TKDrawingBlock drawBlock = [_cache objectForKey: options];
-        TKView *result = [TKView viewWithFrame: CGRectMake(frame.origin.x, frame.origin.y, 
+        TKView *result = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
                                                            canvasRect.size.width, canvasRect.size.height)
                                andDrawingBlock: drawBlock];
 
@@ -767,7 +764,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         [_cache setObject: Block_copy(block) forKey: options];
     
     // Wrap up and create the resulting view
-    TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x, frame.origin.y, 
+    TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
                                                      canvasRect.size.width, canvasRect.size.height)
                          andDrawingBlock: block];
     
@@ -804,20 +801,20 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         canvasRect = CGRectUnion(canvasRect, shadowRect);
     }
     
+    // Adjust the inner origin, this is where the actual view is located
+    origin.x = frame.origin.x - canvasRect.origin.x;
+    origin.y = frame.origin.y - canvasRect.origin.y;
+    
     // Check cache
     if (_isCached && [_cache objectForKey: options]) {
         TKDrawingBlock block = [_cache objectForKey: options];
         
-        TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x, frame.origin.y, 
+        TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.x, 
                                                          canvasRect.size.width, canvasRect.size.height)
                              andDrawingBlock: block];
         
         return view;
     }
-    
-    // Adjust the inner origin, this is where the actual view is located
-    origin.x = frame.origin.x - canvasRect.origin.x;
-    origin.y = frame.origin.y - canvasRect.origin.y;
     
     // Create the drawing block
     TKDrawingBlock drawBlock = ^(CGContextRef context) {
@@ -968,16 +965,15 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         [_cache setObject: Block_copy(drawBlock) forKey: options];
     
     // Wrap up and create the view
-    TKView *view = [TKView viewWithFrame: CGRectMake(canvasRect.origin.x, canvasRect.origin.y, 
+    TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
                                                      canvasRect.size.width, canvasRect.size.height) 
                          andDrawingBlock: drawBlock];
         
     return view;
 }
 
-- (TKView *)pathAtOrigin: (CGPoint)start forOptions: (NSDictionary *)options {
-    // Get the path described (__block as it will be mentioned within the drawingblock)
-    __block CGMutablePathRef mainPath = [self pathForSVGSyntax: [options objectForKey: PathDescriptionKey]];
+- (TKView *)pathForOptions: (NSDictionary *)options {
+    CGMutablePathRef mainPath = [self pathForSVGSyntax: [options objectForKey: PathDescriptionKey]];
     
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
@@ -985,28 +981,18 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     // Calculate the needed size for the rect
     CGRect bounding = CGPathGetBoundingBox(mainPath);
     
-    // First determine the top left corner (the origin)
-    CGPoint minBounding = bounding.origin;
-    CGPoint topLeft = CGPointMake(MIN(minBounding.x, start.x), MIN(minBounding.y, start.y));
-    CGPoint bottomRight = CGPointMake(CGRectGetMaxX(bounding), CGRectGetMaxY(bounding));
-    CGRect frame = CGRectMake(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
-    
     // Store the size
-    CGSize size = frame.size;
-    
-    // Adjust the drawing origin
-    origin.x = topLeft.x - minBounding.x;
-    origin.y = topLeft.y - minBounding.y;
+    CGSize size = bounding.size;
     
     // Additionally keep track of the canvasrect, starts being the main frame
-    CGRect canvasRect = frame;
+    CGRect canvasRect = bounding;
     
     // If outer stroke, enlarge the frame
     if ([options objectForKey: OuterStrokeOptionKey]) {
         CGFloat strokeWidth = [[[options objectForKey: OuterStrokeOptionKey] objectForKey: WidthParameterKey] floatValue];
         
         // Create a stroke rect
-        CGRect strokeRect = TKStrokeRectForRectAndWidth(frame, strokeWidth);
+        CGRect strokeRect = TKStrokeRectForRectAndWidth(bounding, strokeWidth);
         
         // Find a union between the canvas and stroke rect
         canvasRect = CGRectUnion(canvasRect, strokeRect);
@@ -1016,26 +1002,28 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     if ([options objectForKey: DropShadowOptionKey]) {
         // Create a special frame for the shadow
         NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
-        CGRect shadowRect = TKShadowRectForRectAndOptions(frame, dictionary);
+        CGRect shadowRect = TKShadowRectForRectAndOptions(bounding, dictionary);
         
         // Find the union between canvas and shadow
         canvasRect = CGRectUnion(canvasRect, shadowRect);
     }
     
+    // Adjust the inner origin, this is where the actual view is located
+    origin.x = bounding.origin.x - canvasRect.origin.x;
+    origin.y = bounding.origin.y - canvasRect.origin.y;
+
     // Now as we have the frame, check cache for a view with same properties
     // As a key use the NSDictionary of the description
     if (_isCached && [_cache objectForKey: options]) {
         TKDrawingBlock drawBlock = [_cache objectForKey: options];
-        TKView *view = [TKView viewWithFrame: CGRectMake(canvasRect.origin.x, canvasRect.origin.y, 
-                                                         canvasRect.size.width, canvasRect.size.height)
+        TKView *view = [TKView viewWithFrame: canvasRect
                              andDrawingBlock: drawBlock];
-        
         return view;
     }
     
-    // Adjust the inner origin, this is where the actual view is located
-    origin.x = frame.origin.x - canvasRect.origin.x;
-    origin.y = frame.origin.y - canvasRect.origin.y;
+    // Transform the path to the new origin
+    CGAffineTransform transform = CGAffineTransformMakeTranslation(-bounding.origin.x + origin.x, -bounding.origin.y + origin.y);
+    __block CGPathRef adjustedPath = CGPathCreateCopyByTransformingPath(mainPath, &transform);
     
     // Create the drawing block
     TKDrawingBlock drawBlock = ^(CGContextRef context) {
@@ -1043,11 +1031,8 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         // Start with the main inner view
         CGContextSaveGState(context);
         
-        // Adjust the path for the origin
-        CGAffineTransform transform = CGAffineTransformMakeTranslation(origin.x, origin.y);
-        mainPath = CGPathCreateMutableCopyByTransformingPath(mainPath, &transform);
-        [(id)mainPath autorelease];
-        CGContextAddPath(context, mainPath);
+        // Retain the path and add it to the context for filling
+        CGContextAddPath(context, adjustedPath);
         
         // If shadow needed, draw it
         if ([options objectForKey: DropShadowOptionKey]) {
@@ -1082,7 +1067,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             CGContextSaveGState(context);
             
             // Gradient is present, first clip the context
-            CGContextAddPath(context, mainPath);
+            CGContextAddPath(context, adjustedPath);
             CGContextClip(context);
             
             // Draw the gradient
@@ -1100,7 +1085,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
             
             // Start by clipping to the interior
-            CGContextAddPath(context, mainPath);            
+            CGContextAddPath(context, adjustedPath);            
             CGContextClip(context);
             
             // Add bounding
@@ -1110,7 +1095,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             NSDictionary *offset = [dictionary objectForKey: OffsetParameterKey];
             CGAffineTransform transform = CGAffineTransformMakeTranslation([[offset objectForKey: XCoordinateParameterKey] floatValue],
                                                                            [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-            CGPathRef transformedPath = CGPathCreateCopyByTransformingPath(mainPath, &transform);
+            CGPathRef transformedPath = CGPathCreateCopyByTransformingPath(adjustedPath, &transform);
             CGContextAddPath(context, transformedPath);
             CGPathRelease(transformedPath);
             
@@ -1143,7 +1128,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             NSDictionary *dictionary = [options objectForKey: OuterStrokeOptionKey];
             
             // There is a stroke, add the path to stroke
-            CGContextAddPath(context, mainPath);
+            CGContextAddPath(context, adjustedPath);
             
             if ([dictionary objectForKey: AlphaParameterKey])
                 CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
@@ -1163,11 +1148,596 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         [_cache setObject: Block_copy(drawBlock) forKey: options];
     
     // Create and return the view
-    TKView *view = [TKView viewWithFrame: CGRectMake(canvasRect.origin.x, canvasRect.origin.y, 
-                                                     canvasRect.size.width, canvasRect.size.height)
+    TKView *view = [TKView viewWithFrame: canvasRect
                          andDrawingBlock: drawBlock];
     
     return view;
+}
+
+- (UILabel *)labelInFrame: (CGRect)frame forOptions: (NSDictionary *)description {
+    UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
+    
+    // Content
+    if ([description objectForKey: ContentStringParameterKey]) {
+        label.text = [description objectForKey: ContentStringParameterKey];
+    }
+    
+    // Alignment
+    if ([description objectForKey: ContentAlignmentParameterKey]) {
+        NSString *alignment = [description objectForKey: ContentAlignmentParameterKey];
+        if ([alignment isEqualToString: @"center"]) {
+            label.textAlignment = UITextAlignmentCenter;
+        } else if ([alignment isEqualToString: @"left"]) {
+            label.textAlignment = UITextAlignmentLeft;
+        } else if ([alignment isEqualToString: @"right"]) {
+            label.textAlignment = UITextAlignmentRight;
+        }
+    }
+    
+    // Text color
+    if ([description objectForKey: ContentColorParameterKey]) {
+        label.textColor = [UIColor colorForWebColor: [description objectForKey: ContentColorParameterKey]];
+    }
+    
+    // Background color
+    if ([description objectForKey: ColorParameterKey]) {
+        label.backgroundColor = [UIColor colorForWebColor: [description objectForKey: ColorParameterKey]];
+    } else {
+        label.backgroundColor = [UIColor clearColor];
+    }
+    
+    // Gradient fill
+    if ([description objectForKey: GradientFillOptionKey]) {
+        // Compose the gradient from the colors and positions
+        UIImage *pattern = [self patternGradientForGradientProperties: [description objectForKey: GradientFillOptionKey] height: frame.size.height];
+        
+        [label setTextColor: [UIColor colorWithPatternImage: pattern]];
+    }
+    
+    // Alpha
+    if ([description objectForKey: AlphaParameterKey]) {
+        label.alpha = [[description objectForKey: AlphaParameterKey] floatValue];
+    }
+    
+    // Font size & Font
+    if ([description objectForKey: ContentFontSizeParameterKey]) {
+        label.font = [UIFont systemFontOfSize: [[description objectForKey: ContentFontSizeParameterKey] floatValue]];
+    }
+    
+    if ([description objectForKey: ContentFontWeightParameterKey]) {
+        NSString *weight = [description objectForKey: ContentFontWeightParameterKey];
+        
+        if ([weight isEqualToString: @"bold"]) {
+            label.font = [UIFont boldSystemFontOfSize: label.font.pointSize];
+        } else {
+            label.font = [UIFont systemFontOfSize: label.font.pointSize];
+        }
+    } else if ([description objectForKey: ContentFontNameParameterKey]) {
+        label.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize];
+    }
+    
+    // Shadow
+    if ([description objectForKey: DropShadowOptionKey]) {
+        NSDictionary *shadow = [description objectForKey: DropShadowOptionKey];
+        
+        if ([shadow objectForKey: ColorParameterKey])
+            label.shadowColor = [UIColor colorForWebColor: [shadow objectForKey: ColorParameterKey]];
+        else
+            label.shadowColor = [UIColor blackColor];
+        
+        if ([shadow objectForKey: AlphaParameterKey]) {
+            label.shadowColor = [label.shadowColor colorWithAlphaComponent: [[shadow objectForKey: AlphaParameterKey] floatValue]];
+        }
+        
+        NSDictionary *offset = [shadow objectForKey: OffsetParameterKey];
+        label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
+                                        [[offset objectForKey: YCoordinateParameterKey] floatValue]);
+    } else if ([description objectForKey: ContentShadowParameterKey]) {
+        NSDictionary *shadow = [description objectForKey: ContentShadowParameterKey];
+        
+        if ([shadow objectForKey: ColorParameterKey])
+            label.shadowColor = [UIColor colorForWebColor: [shadow objectForKey: ColorParameterKey]];
+        else
+            label.shadowColor = [UIColor blackColor];
+        
+        if ([shadow objectForKey: AlphaParameterKey]) {
+            label.shadowColor = [label.shadowColor colorWithAlphaComponent: [[shadow objectForKey: AlphaParameterKey] floatValue]];
+        }
+        
+        NSDictionary *offset = [shadow objectForKey: OffsetParameterKey];
+        label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
+                                        [[offset objectForKey: YCoordinateParameterKey] floatValue]);
+    }
+    
+    return label;
+}
+
+- (UIButton *)buttonInFrame: (CGRect)frame forOptions: (NSDictionary *)description {
+    // A button, start by seeing if there are images
+    // (if there is at least one, will use the custom type not the default rounded)
+    BOOL custom = NO;
+    
+    NSMutableDictionary *states = [NSMutableDictionary dictionaryWithCapacity: 4]; // 4 is the max size
+    NSMutableDictionary *stateImages = [NSMutableDictionary dictionaryWithCapacity: 4];
+    
+    // Normal state
+    if ([description objectForKey: ButtonNormalStateView]) {
+        custom = YES;
+        
+        NSDictionary *button = [description objectForKey: ButtonNormalStateView];
+        
+        // Check if there's a view
+        if ([button objectForKey: SizeParameterKey]) {
+            
+            // Generate the view for the button and compress it into an image
+            UIImage *image = [self compressedImageForView: 
+                              [self viewForDescription: button bindings: NULL]];
+
+            if ([button objectForKey: ButtonViewStretchable]) {
+                // It is, the stretchable property contains 2 values, the left and top cap widths
+                NSArray *values = [button objectForKey: ButtonViewStretchable];
+                CGFloat top = [[values objectAtIndex: 1] floatValue];
+                CGFloat left = [[values objectAtIndex: 0] floatValue];
+                
+                // Make the image stretchable
+                image = [image stretchableImageWithLeftCapWidth: left topCapHeight: top];
+            }
+            
+            // Check if an image is present
+            if ([button objectForKey: ButtonContentImage]) {
+                // There's an image, render and compress it
+                UIImage *contentImage = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                [stateImages setObject: contentImage forKey: ButtonNormalStateView];
+            }
+            
+            // Assign the image to the correct state
+            [states setObject: image forKey: ButtonNormalStateView];
+        }
+    }
+    
+    // Highlighted state
+    if ([description objectForKey: ButtonHighlightedStateView]) {
+        custom = YES;
+        
+        NSDictionary *button = [description objectForKey: ButtonHighlightedStateView];
+        
+        // Grab the view and compress it to an image
+        if ([button objectForKey: SizeParameterKey]) {
+            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            
+            // Check if it's stretchable
+            if ([button objectForKey: ButtonViewStretchable]) {
+                // It is, the stretchable property contains 2 values, the left and top cap widths
+                NSArray *values = [button objectForKey: ButtonViewStretchable];
+                CGFloat top = [[values objectAtIndex: 1] floatValue];
+                CGFloat left = [[values objectAtIndex: 0] floatValue];
+                
+                // Make the image stretchable
+                image = [image stretchableImageWithLeftCapWidth: left topCapHeight: top];
+            }
+            
+            // Check if an image is present
+            if ([button objectForKey: ButtonContentImage]) {
+                // There's an image, render and compress it
+                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                [stateImages setObject: image forKey: ButtonHighlightedStateView];
+            }
+            
+            // Assign the image to the key in the dictionary
+            [states setObject: image forKey: ButtonHighlightedStateView];
+        }
+    }
+    
+    // Selected view
+    if ([description objectForKey: ButtonSelectedStateView]) {
+        custom = YES;
+        
+        NSDictionary *button = [description objectForKey: ButtonSelectedStateView];
+        
+        // Grab the view and compress it to an image
+        if ([button objectForKey: SizeParameterKey]) {
+            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            
+            // Check if it's stretchable
+            if ([button objectForKey: ButtonViewStretchable]) {
+                // It is, the stretchable property contains 2 values, the left and top cap widths
+                NSArray *values = [button objectForKey: ButtonViewStretchable];
+                CGFloat top = [[values objectAtIndex: 1] floatValue];
+                CGFloat left = [[values objectAtIndex: 0] floatValue];
+                
+                // Make the image stretchable
+                image = [image stretchableImageWithLeftCapWidth: left topCapHeight: top];
+            }
+            
+            // Check if an image is present
+            if ([button objectForKey: ButtonContentImage]) {
+                // There's an image, render and compress it
+                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                [stateImages setObject: image forKey: ButtonSelectedStateView];
+            }
+            
+            // Assign the image to the key in the dictionary
+            [states setObject: image forKey: ButtonSelectedStateView];
+        }
+    }
+
+    // Selected highlighted view
+    if ([description objectForKey: ButtonHighlightedSelectedStateView]) {
+        custom = YES;
+        
+        NSDictionary *button = [description objectForKey: ButtonHighlightedSelectedStateView];
+        
+        // Grab the view and compress it to an image
+        if ([button objectForKey: SizeParameterKey]) {
+            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            
+            // Check if it's stretchable
+            if ([button objectForKey: ButtonViewStretchable]) {
+                // It is, the stretchable property contains 2 values, the left and top cap widths
+                NSArray *values = [button objectForKey: ButtonViewStretchable];
+                CGFloat top = [[values objectAtIndex: 1] floatValue];
+                CGFloat left = [[values objectAtIndex: 0] floatValue];
+                
+                // Make the image stretchable
+                image = [image stretchableImageWithLeftCapWidth: left topCapHeight: top];
+            }
+            
+            // Check if an image is present
+            if ([button objectForKey: ButtonContentImage]) {
+                // There's an image, render and compress it
+                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                [stateImages setObject: image forKey: ButtonHighlightedSelectedStateView];
+            }
+            
+            // Assign the image to the key in the dictionary
+            [states setObject: image forKey: ButtonHighlightedSelectedStateView];
+        }
+    }
+    
+    // Disabled view
+    if ([description objectForKey: ButtonDisabledStateView]) {
+        custom = YES;
+        
+        NSDictionary *button = [description objectForKey: ButtonDisabledStateView];
+        
+        // Grab the view and compress it to an image
+        if ([button objectForKey: SizeParameterKey]) {
+            // There is a size, means there is a view to draw
+            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            
+            // Check if it's stretchable
+            if ([button objectForKey: ButtonViewStretchable]) {
+                // It is, the stretchable property contains 2 values, the left and top cap widths
+                NSArray *values = [button objectForKey: ButtonViewStretchable];
+                CGFloat top = [[values objectAtIndex: 1] floatValue];
+                CGFloat left = [[values objectAtIndex: 0] floatValue];
+                
+                // Make the image stretchable
+                image = [image stretchableImageWithLeftCapWidth: left topCapHeight: top];
+            }
+            
+            // Check if an image is present
+            if ([button objectForKey: ButtonContentImage]) {
+                // There's an image, render and compress it
+                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                [stateImages setObject: image forKey: ButtonDisabledStateView];
+            }
+            
+            // Assign the image to the key in the dictionary
+            [states setObject: image forKey: ButtonDisabledStateView];
+        }
+    }
+    
+    // Create the button
+    UIButton *button;
+    if (custom) {
+        button = [UIButton buttonWithType: UIButtonTypeCustom];
+    } else
+        button = [UIButton buttonWithType: UIButtonTypeRoundedRect];
+    
+    
+    // Adjust content shadow
+    if ([description objectForKey: ContentShadowParameterKey]) {
+        NSDictionary *textShadow = [description objectForKey: ContentShadowParameterKey];
+        if ([textShadow objectForKey: ColorParameterKey]) {
+            UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+            
+            if ([textShadow objectForKey: AlphaParameterKey]) {
+                color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+            }
+            
+            [button setTitleShadowColor: color forState: UIControlStateNormal];
+        }
+        
+        if ([textShadow objectForKey: OffsetParameterKey]) {
+            button.titleLabel.shadowOffset = CGSizeMake([[[textShadow objectForKey: OffsetParameterKey] 
+                                                          objectForKey: XCoordinateParameterKey] floatValue],
+                                                        [[[textShadow objectForKey: OffsetParameterKey]
+                                                          objectForKey: YCoordinateParameterKey] floatValue]);
+        }
+    }
+    
+    // Adjust font
+    // Font size & Font
+    if ([description objectForKey: ContentFontSizeParameterKey]) {
+        button.titleLabel.font = [UIFont systemFontOfSize: [[description objectForKey: ContentFontSizeParameterKey] floatValue]];
+    }
+    
+    // Add the text
+    if ([description objectForKey: ContentStringParameterKey])
+        [button setTitle: [description objectForKey: ContentStringParameterKey] forState: UIControlStateNormal];
+    
+    if ([description objectForKey: ContentFontWeightParameterKey]) {
+        NSString *weight = [description objectForKey: ContentFontWeightParameterKey];
+        
+        if ([weight isEqualToString: @"bold"]) {
+            button.titleLabel.font = [UIFont boldSystemFontOfSize: button.titleLabel.font.pointSize];
+        } else {
+            button.titleLabel.font = [UIFont systemFontOfSize: button.titleLabel.font.pointSize];
+        }
+    } else if ([description objectForKey: ContentFontNameParameterKey]) {
+        button.titleLabel.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: button.titleLabel.font.pointSize];
+    }
+    
+    // Adjust every custom state, this means images, titles and colors, shadows etc.
+    if ([description objectForKey: ButtonNormalStateView]) {
+        NSDictionary *normal = [description objectForKey: ButtonNormalStateView];
+        
+        // Handle text color, shadow color and so on
+        if ([normal objectForKey: ContentColorParameterKey]) {
+            [button setTitleColor: [UIColor colorForWebColor: [normal objectForKey: ContentColorParameterKey]] 
+                         forState: UIControlStateNormal];
+        }
+        
+        if ([normal objectForKey: ContentShadowParameterKey]) {
+            NSDictionary *textShadow = [normal objectForKey: ContentShadowParameterKey];
+            if ([textShadow objectForKey: ColorParameterKey]) {
+                UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+                
+                if ([textShadow objectForKey: AlphaParameterKey]) {
+                    color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+                }
+                
+                [button setTitleShadowColor: color forState: UIControlStateNormal];
+            }
+        }
+        
+        if ([normal objectForKey: ContentStringParameterKey])
+            [button setTitle: [normal objectForKey: ContentStringParameterKey] forState: UIControlStateNormal];
+        
+        if ([normal objectForKey: ContentGradientParameterKey]) {
+            // Apply a gradient to the text
+            UIImage *gradient = [self patternGradientForGradientProperties: [normal objectForKey: ContentGradientParameterKey]
+                                                                    height: button.titleLabel.frame.size.height];
+            
+            [button setTitleColor: [UIColor colorWithPatternImage: gradient] forState: UIControlStateNormal];
+        }
+        
+        if ([stateImages objectForKey: ButtonNormalStateView])
+            [button setImage: [stateImages objectForKey: ButtonNormalStateView] forState: UIControlStateNormal];
+        
+        if ([states objectForKey: ButtonNormalStateView])
+            [button setBackgroundImage: [states objectForKey: ButtonNormalStateView] forState: UIControlStateNormal];     
+    }
+    
+    if ([description objectForKey: ButtonHighlightedStateView]) {
+        NSDictionary *highlighted = [description objectForKey: ButtonHighlightedStateView];
+        
+        // Handle text color, shadow color and so on
+        if ([highlighted objectForKey: ContentColorParameterKey]) {
+            [button setTitleColor: [UIColor colorForWebColor: [highlighted objectForKey: ContentColorParameterKey]] 
+                         forState: UIControlStateHighlighted | UIControlStateSelected];
+        }
+        
+        if ([highlighted objectForKey: ContentShadowParameterKey]) {
+            NSDictionary *textShadow = [highlighted objectForKey: ContentShadowParameterKey];
+            if ([textShadow objectForKey: ColorParameterKey]) {
+                UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+                
+                if ([textShadow objectForKey: AlphaParameterKey]) {
+                    color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+                }
+                
+                [button setTitleShadowColor: color forState: UIControlStateHighlighted | UIControlStateSelected];
+            }
+        }
+        
+        if ([highlighted objectForKey: ContentStringParameterKey]) {
+            [button setTitle: [highlighted objectForKey: ContentStringParameterKey] forState: UIControlStateHighlighted | UIControlStateSelected];
+            [button setTitle: [highlighted objectForKey: ContentStringParameterKey] forState: UIControlStateHighlighted];
+        }
+        
+        // Handle text color, shadow color and so on
+        if ([highlighted objectForKey: ContentColorParameterKey]) {
+            [button setTitleColor: [UIColor colorForWebColor: [highlighted objectForKey: ContentColorParameterKey]] 
+                         forState: UIControlStateHighlighted];
+        }
+        
+        if ([highlighted objectForKey: ContentShadowParameterKey]) {
+            NSDictionary *textShadow = [highlighted objectForKey: ContentShadowParameterKey];
+            if ([textShadow objectForKey: ColorParameterKey]) {
+                UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+                
+                if ([textShadow objectForKey: AlphaParameterKey]) {
+                    color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+                }
+                
+                [button setTitleShadowColor: color forState: UIControlStateHighlighted];
+            }
+        }
+        
+        // Check for content gradient, if one is present apply to the label
+        if ([highlighted objectForKey: ContentGradientParameterKey]) {
+            UIImage *image = [self patternGradientForGradientProperties: [highlighted objectForKey: ContentGradientParameterKey] 
+                                                                 height: button.titleLabel.frame.size.height];
+            
+            [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateHighlighted];
+            [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateHighlighted | UIControlStateSelected];
+        }
+        
+        if ([stateImages objectForKey: ButtonHighlightedStateView]) {
+            [button setImage: [stateImages objectForKey: ButtonHighlightedStateView] forState: UIControlStateHighlighted | UIControlStateSelected];
+            [button setImage: [stateImages objectForKey: ButtonHighlightedStateView] forState: UIControlStateHighlighted];
+        }
+        
+        if ([states objectForKey: ButtonHighlightedStateView]) {
+            [button setBackgroundImage: [states objectForKey: ButtonHighlightedStateView] forState: UIControlStateHighlighted | UIControlStateSelected];
+            [button setBackgroundImage: [states objectForKey: ButtonHighlightedStateView] forState: UIControlStateHighlighted];
+        }
+    }
+    
+    if ([description objectForKey: ButtonDisabledStateView]) {
+        NSDictionary *disabled = [description objectForKey: ButtonDisabledStateView];
+        
+        // Handle text color, shadow color and so on
+        if ([disabled objectForKey: ContentColorParameterKey]) {
+            [button setTitleColor: [UIColor colorForWebColor: [disabled objectForKey: ContentColorParameterKey]] 
+                         forState: UIControlStateDisabled];
+        }
+        
+        if ([disabled objectForKey: ContentShadowParameterKey]) {
+            NSDictionary *textShadow = [disabled objectForKey: ContentShadowParameterKey];
+            if ([textShadow objectForKey: ColorParameterKey]) {
+                UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+                
+                if ([textShadow objectForKey: AlphaParameterKey]) {
+                    color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+                }
+                
+                [button setTitleShadowColor: color forState: UIControlStateDisabled];
+            }
+        }
+        
+        if ([disabled objectForKey: ContentStringParameterKey])
+            [button setTitle: [disabled objectForKey: ContentStringParameterKey] forState: UIControlStateDisabled];
+        
+        // Check for content gradient, if present apply to the title
+        if ([disabled objectForKey: ContentGradientParameterKey]) {
+            UIImage *image = [self patternGradientForGradientProperties: [disabled objectForKey: ContentGradientParameterKey]
+                                                                 height: button.titleLabel.frame.size.height];
+            
+            [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateDisabled];
+        }
+        
+        if ([states objectForKey: ButtonDisabledStateView]) {
+            [button setBackgroundImage: [states objectForKey: ButtonDisabledStateView] forState: UIControlStateDisabled];
+        }
+        
+        if ([stateImages objectForKey: ButtonContentImage]) {
+            [button setImage: [stateImages objectForKey: ButtonDisabledStateView] forState: UIControlStateDisabled];
+        }
+    }
+    
+    if ([description objectForKey: ButtonSelectedStateView]) {
+        NSDictionary *selected = [description objectForKey: ButtonSelectedStateView];
+        
+        // Handle text color, shadow color and so on
+        if ([selected objectForKey: ContentColorParameterKey]) {
+            [button setTitleColor: [UIColor colorForWebColor: [selected objectForKey: ContentColorParameterKey]] 
+                         forState: UIControlStateSelected];
+        }
+        
+        if ([selected objectForKey: ContentShadowParameterKey]) {
+            NSDictionary *textShadow = [selected objectForKey: ContentShadowParameterKey];
+            if ([textShadow objectForKey: ColorParameterKey]) {
+                UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+                
+                if ([textShadow objectForKey: AlphaParameterKey]) {
+                    color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+                }
+                
+                [button setTitleShadowColor: color forState: UIControlStateSelected];
+            }
+        }
+        
+        if ([selected objectForKey: ContentStringParameterKey])
+            [button setTitle: [selected objectForKey: ContentStringParameterKey] forState: UIControlStateSelected];
+        
+        // Check for content gradient
+        if ([selected objectForKey: ContentGradientParameterKey]) {
+            UIImage *image = [self patternGradientForGradientProperties: [selected objectForKey: ContentGradientParameterKey]
+                                                                 height: button.titleLabel.frame.size.height];
+            
+            [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateSelected];
+        }
+        
+        if ([stateImages objectForKey: ButtonSelectedStateView])
+            [button setImage: [stateImages objectForKey: ButtonSelectedStateView] forState: UIControlStateSelected];
+        
+        if ([states objectForKey: ButtonSelectedStateView])
+            [button setBackgroundImage: [states objectForKey: ButtonSelectedStateView] forState: UIControlStateSelected];
+    }
+
+    if ([description objectForKey: ButtonHighlightedSelectedStateView]) {
+        NSDictionary *selected = [description objectForKey: ButtonHighlightedSelectedStateView];
+        
+        // Handle text color, shadow color and so on
+        if ([selected objectForKey: ContentColorParameterKey]) {
+            [button setTitleColor: [UIColor colorForWebColor: [selected objectForKey: ContentColorParameterKey]] 
+                         forState: UIControlStateHighlighted | UIControlStateSelected];
+        }
+        
+        if ([selected objectForKey: ContentShadowParameterKey]) {
+            NSDictionary *textShadow = [selected objectForKey: ContentShadowParameterKey];
+            if ([textShadow objectForKey: ColorParameterKey]) {
+                UIColor *color = [UIColor colorForWebColor: [textShadow objectForKey: ColorParameterKey]];
+                
+                if ([textShadow objectForKey: AlphaParameterKey]) {
+                    color = [color colorWithAlphaComponent: [[textShadow objectForKey: AlphaParameterKey] floatValue]];
+                }
+                
+                [button setTitleShadowColor: color forState: UIControlStateHighlighted | UIControlStateSelected];
+            }
+        }
+        
+        if ([selected objectForKey: ContentStringParameterKey])
+            [button setTitle: [selected objectForKey: ContentStringParameterKey] forState: UIControlStateHighlighted | UIControlStateSelected];
+        
+        // Check for content gradient
+        if ([selected objectForKey: ContentGradientParameterKey]) {
+            UIImage *image = [self patternGradientForGradientProperties: [selected objectForKey: ContentGradientParameterKey]
+                                                                 height: button.titleLabel.frame.size.height];
+            
+            [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateHighlighted | UIControlStateSelected];
+        }
+        
+        if ([stateImages objectForKey: ButtonHighlightedSelectedStateView])
+            [button setImage: [stateImages objectForKey: ButtonHighlightedSelectedStateView] forState: UIControlStateHighlighted | UIControlStateSelected];
+        
+        if ([states objectForKey: ButtonHighlightedSelectedStateView])
+            [button setBackgroundImage: [states objectForKey: ButtonHighlightedSelectedStateView] forState: UIControlStateHighlighted | UIControlStateSelected];
+    }
+
+    // Check the insets (image)
+    if ([[description objectForKey: ButtonContentImageInsets] isKindOfClass: [NSArray class]]) {
+        // We have an array of values
+        NSArray *values = [description objectForKey: ButtonContentImageInsets];
+        UIEdgeInsets insets = UIEdgeInsetsMake([[values objectAtIndex: 0] floatValue], [[values objectAtIndex: 1] floatValue],
+                                                   [[values objectAtIndex: 2] floatValue], [[values objectAtIndex: 3] floatValue]);
+        [button setImageEdgeInsets: insets];
+    } else if ([description objectForKey: ButtonContentImageInsets]) {
+        // One value, meant for them all
+        CGFloat inset = [[description objectForKey: ButtonContentImageInsets] floatValue];
+        [button setImageEdgeInsets: UIEdgeInsetsMake(inset, inset, inset, inset)];
+    }
+    
+    // General
+    if ([[description objectForKey: ButtonContentInsets] isKindOfClass: [NSArray class]]) {
+        // We have an array of values
+        NSArray *values = [description objectForKey: ButtonContentInsets];
+        UIEdgeInsets insets = UIEdgeInsetsMake([[values objectAtIndex: 0] floatValue], [[values objectAtIndex: 1] floatValue],
+                                               [[values objectAtIndex: 2] floatValue], [[values objectAtIndex: 3] floatValue]);
+        [button setContentEdgeInsets: insets];
+    } else if ([description objectForKey: ButtonContentInsets]) {
+        // One value, meant for all edges
+        CGFloat inset = [[description objectForKey: ButtonContentInsets] floatValue];
+        [button setContentEdgeInsets: UIEdgeInsetsMake(inset, inset, inset, inset)];
+    }
+        
+    // Set the frame of the button
+    [button setFrame: frame];
+    
+    return button;
 }
 
 #pragma mark - Path related
@@ -1632,10 +2202,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 #pragma mark - Cache
 
 - (void)flushCache {    
-    // Simply empty out the cache dictionary
-    if (_isCached) {
-        [_cache removeAllObjects];
-    }
+    // Simply empty out the cache dictionaries
+    [_cache removeAllObjects];
+    [_JSONCache removeAllObjects];
 }
 
 @end
@@ -1662,6 +2231,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     if (self) {
         _isCached = YES;
         _cache = [[NSMutableDictionary alloc] init];
+        _JSONCache = [[NSMutableDictionary alloc] init];
                 
         // Observe notification about memory warning
         [[NSNotificationCenter defaultCenter] addObserver: self selector: @selector(flushCache) name: UIApplicationDidReceiveMemoryWarningNotification object: nil];
@@ -1670,23 +2240,42 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     return self;
 }
 
-- (UIView *)viewHierarchyForJSONAtPath:(NSString *)path {
-    // Check the cache for the path, if present return the view right away
-    if (_isCached && [_cache objectForKey: path])
-        return [_cache objectForKey: path];
+- (UIView *)viewHierarchyForJSONAtPath:(NSString *)path bindings: (NSDictionary **)bindings {   
+    // Check the cache first for JSON
+    if (_isCached && [_JSONCache objectForKey: path]) {
+        return [self viewHierarchyForJSONDictionary: [_JSONCache objectForKey: path] bindings: bindings];
+    }
     
-    // Not present
-    UIView *view = [self viewHierarchyFromJSON: [NSData dataWithContentsOfFile: path]];
+    // Convert the JSON into a NSDictionary
+    // If NSJSONSerialization is available, prefer that, if not, fall back to JSONKit
+    // NSJSONSerialization has benefits, such as speed, but also future support in iOS
+    NSDictionary *JSONDictionary;
+    NSData *JSONData = [NSData dataWithContentsOfFile: path];
     
-    if (_isCached)
-        [_cache setObject: view forKey: path];
+    if (NSClassFromString(@"NSJSONSerialization")) {
+        NSError *error = nil;
+        JSONDictionary = [NSJSONSerialization JSONObjectWithData: JSONData options: 0 error: &error];
+        
+        if (error) {
+            NSLog(@"NSJSONSerialization error while parsing JSON: %@", [error description]);
+        }
+    } else {
+        JSONDictionary = [[JSONDecoder decoder] objectWithData: JSONData];
+    }
     
-    return view;
+    // Cache the JSON
+    if (_isCached) {
+        [_JSONCache setObject: JSONDictionary forKey: path];
+    }
+       
+    // And return a brand new view with the JSON
+    // - this is to avoid returning a view that is already in use
+    return [self viewHierarchyForJSONDictionary: JSONDictionary bindings: bindings];
 }
 
 // View creation
-- (UIView *)viewHierarchyFromJSON: (NSData *)JSONData {
-    // First deserialize the JSON
+- (UIView *)viewHierarchyFromJSON: (NSData *)JSONData bindings: (NSDictionary **)bindings {
+    // First deserialize the JSON, this method does not cache the resulting JSON dictionary
     // If NSJSONSerialization is available, prefer that, if not, fall back to JSONKit
     // NSJSONSerialization has benefits, such as speed, but also future support in iOS
     NSDictionary *JSONDictionary;
@@ -1701,48 +2290,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         JSONDictionary = [[JSONDecoder decoder] objectWithData: JSONData];
     }
     
-    // If cache enabled, search for the view
-    if (_isCached && [_cache objectForKey: JSONData])
-        return [_cache objectForKey: JSONData];
-    
-    // Next get the size parameters of the main dictionary - that is the size of outermost view
-    CGSize size;
-    if ([JSONDictionary objectForKey: SizeParameterKey]) {
-        size = CGSizeMake([[[JSONDictionary objectForKey: SizeParameterKey] objectForKey: WidthParameterKey] floatValue],
-                         [[[JSONDictionary objectForKey: SizeParameterKey] objectForKey: HeightParameterKey] floatValue]);
-    } else {
-        NSLog(@"Error! No size specified for the outermost view, will result in no view being drawn");
-        size = CGSizeZero;
-    }
-    
-    // Grab the origin, if present
-    CGPoint origin;
-    if ([JSONDictionary objectForKey: OriginParameterKey]) {
-        origin = CGPointMake([[[JSONDictionary objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                             [[[JSONDictionary objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
-    } else {
-        // No origin means default to 0.0 0.0
-        origin = CGPointZero;
-    }
-    
-    // Create the container view
-    UIView *view = [[[UIView alloc] initWithFrame: CGRectMake(origin.x, origin.y, size.width, size.height)] autorelease];
-    [view setBackgroundColor: [UIColor clearColor]];
-    
-    if (view) {
-        // Grab the subviews
-        NSArray *options = [JSONDictionary objectForKey: SubviewSectionKey];
-        
-        // Add them all as subviews
-        [self addSubviewsWithDescriptions: options toView: view];
-    }
-    
-    // If cache enabled, store the final view (additional layer of caching, incase an identical view hierarchy is used later)
-    if (_isCached) {
-        [_cache setObject: view forKey: JSONData];
-    }
-        
-    return view;
+    return [self viewHierarchyForJSONDictionary: JSONDictionary bindings: bindings];
 }
 
 - (UIImage *)compressedImageForView: (UIView *)view {
@@ -1778,9 +2326,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     
     UIGraphicsEndImageContext();
-    
-    NSLog(@"View frame: %@ image size: %@", NSStringFromCGRect(view.frame), NSStringFromCGSize(image.size));
-    
+        
     return image;
 }
 
@@ -1789,6 +2335,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     [[NSNotificationCenter defaultCenter] removeObserver: self name: UIApplicationDidReceiveMemoryWarningNotification object: nil];
     
     [_cache release];
+    [_JSONCache release];
     [super dealloc];
 }
 
