@@ -10,7 +10,7 @@
 #import "ThemeKit.h"
 
 #pragma mark - Drawing block typedef
-typedef void (^TKDrawingBlock)(CGContextRef context);
+typedef void (^TKDrawingBlock)(CGContextRef context, CGRect rect);
 
 @interface TKView : UIView {
     TKDrawingBlock drawBlock;

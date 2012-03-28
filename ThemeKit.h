@@ -103,6 +103,10 @@ static NSString *const CornerRadiusParameterKey = @"corner-radius";     // Can b
 @interface ThemeKit : NSObject {
     BOOL _isCached;
     
+    // Image cache, works wonders for images that are repeatedly
+    // compressed - i.e custom button graphics etc.
+    NSMutableDictionary *_imageCache;
+    
     // Contains cached drawingblocks for TKViews, 
     // this is to make sure each caching returns a new view not one already in use
     NSMutableDictionary *_cache;

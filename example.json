@@ -121,7 +121,7 @@
                       					"color" : "#154e88"
                     				},
                        
-                    				"color" : "#FFF",
+                    				"content-color" : "#FFF",
                        
                     				"origin" : {
                        					"x" : 25,

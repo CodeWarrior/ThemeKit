@@ -15,7 +15,7 @@
     TKView *view = [[TKView alloc] initWithFrame: frame];
     view.drawBlock = block;
     view.opaque = NO;
-    
+
     return [view autorelease];
 }
 
@@ -24,7 +24,7 @@
 - (void)drawRect: (CGRect)rect {
     // Check if drawing block is present, if so, use it
     if (drawBlock) {
-        drawBlock(UIGraphicsGetCurrentContext());
+        drawBlock(UIGraphicsGetCurrentContext(), rect);
     }
 }
 

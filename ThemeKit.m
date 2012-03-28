@@ -80,7 +80,7 @@
         g = MIN(MAX(c[1], 0), 1);
         b = MIN(MAX(c[2], 0), 1);
     }
-        
+    
     // Convert to hex string between 0x00 and 0xFF
     return [NSString stringWithFormat:@"0x%02X%02X%02X%02X",
             (NSInteger)(a * 255), (NSInteger)(r * 255), (NSInteger)(g * 255), (NSInteger)(b * 255)];
@@ -113,6 +113,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect);
 #pragma mark - Quick images
 
 - (UIImage *)patternGradientForGradientProperties: (NSDictionary *)properties height: (NSInteger)height;
+
+// Preferred compression method, is capable of using caching of the image
+- (UIImage *)compressedImageForDescription: (NSDictionary *)description;
 
 #pragma mark - Primitives
 - (TKView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options;      // Rectangle
@@ -470,9 +473,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     NSDictionary *size = [NSDictionary dictionaryWithObjectsAndKeys: [NSNumber numberWithInt: 3], WidthParameterKey, 
                           [NSNumber numberWithInteger: height], HeightParameterKey, nil];    
     NSDictionary *view = [NSDictionary dictionaryWithObjectsAndKeys: RectangleTypeKey, TypeParameterKey, 
-                                                                                 size, SizeParameterKey,
-                                                                           properties, GradientFillOptionKey, nil];
-        
+                          size, SizeParameterKey,
+                          properties, GradientFillOptionKey, nil];
+    
     // Create the image
     UIImage *image = [self compressedImageForView: 
                       [self viewForDescription: view bindings: NULL]];
@@ -483,12 +486,28 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     return image;
 }
 
+- (UIImage *)compressedImageForDescription: (NSDictionary *)description {
+    UIImage *image;
+    
+    // Check the cache
+    if (_isCached && [_imageCache objectForKey: description]) {
+        return [_imageCache objectForKey: description];
+    }
+    
+    image = [self compressedImageForView: [self viewForDescription: description bindings: NULL]];
+    
+    // Store the image to the cache
+    if (_isCached)
+        [_imageCache setObject: image forKey: description];
+    
+    return image;
+}
+
 #pragma mark - Primitives
 
 - (TKView *)rectangleInFrame: (CGRect)frame options: (NSDictionary *)options {
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
-    CGSize size = frame.size;
     
     // Additionally keep track of the canvasrect
     CGRect canvasRect = frame;
@@ -509,10 +528,14 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         // Create a special frame for the shadow
         NSDictionary *dictionary = [options objectForKey: DropShadowOptionKey];
         CGRect shadowRect = TKShadowRectForRectAndOptions(frame, dictionary);
-                        
+        
         // Find the union between canvas and shadow
         canvasRect = CGRectUnion(canvasRect, shadowRect);
     }
+    
+    // Adjust the inner origin, this is where the actual view is located
+    origin.x = frame.origin.x - canvasRect.origin.x;
+    origin.y = frame.origin.y - canvasRect.origin.y;
     
     // Now as we have the frame, check cache for a view with same properties
     // As a key use the NSDictionary
@@ -521,16 +544,18 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         TKView *result = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
                                                            canvasRect.size.width, canvasRect.size.height)
                                andDrawingBlock: drawBlock];
-
+        
         return result;
     }
     
-    // Adjust the inner origin, this is where the actual view is located
-    origin.x = frame.origin.x - canvasRect.origin.x;
-    origin.y = frame.origin.y - canvasRect.origin.y;
-        
+    // Also follow the size difference of the canvas vs object
+    CGSize sizeOffset = CGSizeMake(canvasRect.size.width - frame.size.width, canvasRect.size.height - frame.size.height);
+    
     // Create the drawing block
-    TKDrawingBlock block = ^(CGContextRef context) {
+    TKDrawingBlock block = ^(CGContextRef context, CGRect rect) {
+        // Adjust the size of the object
+        CGSize size = CGSizeMake(rect.size.width - sizeOffset.width, rect.size.height - sizeOffset.height);
+        
         // Now if there are corner-radii defined, make sure all 4 have a value and balance
         NSObject *corners = [options valueForKey: CornerRadiusParameterKey];
         
@@ -576,7 +601,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             }
             
             // Balance the corners
-            TKBalanceCornerRadiiIntoSize(radii, frame.size);
+            TKBalanceCornerRadiiIntoSize(radii, size);
         }
         
         // Create the path incase the rectangle is rounded
@@ -660,10 +685,10 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Add shifted interior by the offset of the inner shadow
             if (rounded) {
-                CGRect rect = CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                                         origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
-                                         size.width, size.height);
-                CGMutablePathRef shadowRoundedPath = TKRoundedPathInRectForRadii(radii, rect);
+                CGRect shadowrect = CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                               origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
+                                               size.width, size.height);
+                CGMutablePathRef shadowRoundedPath = TKRoundedPathInRectForRadii(radii, shadowrect);
                 
                 CGContextAddPath(context, shadowRoundedPath);            
             } else {
@@ -709,9 +734,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 // Use the radii to draw a path, but adjust the radii, to be correct for the center of the stroke
                 CGFloat strokeRadii[4] = { radii[0] + halfStroke, radii[1] + halfStroke, radii[2] + halfStroke, radii[3] + halfStroke };
                 
-                CGRect rect = CGRectMake(origin.x - strokeWidth / 2.0, origin.y - strokeWidth / 2.0,
-                                         size.width + strokeWidth, size.height + strokeWidth);
-                CGMutablePathRef strokeRoundedPath = TKRoundedPathInRectForRadii(strokeRadii, rect);
+                CGRect strokerect = CGRectMake(origin.x - strokeWidth / 2.0, origin.y - strokeWidth / 2.0,
+                                               size.width + strokeWidth, size.height + strokeWidth);
+                CGMutablePathRef strokeRoundedPath = TKRoundedPathInRectForRadii(strokeRadii, strokerect);
                 
                 // Add path to context and fill it
                 CGContextAddPath(context, strokeRoundedPath);            
@@ -741,9 +766,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 // Use the radii to draw a path, but adjust the radii, to be correct for the center of the stroke
                 CGFloat strokeRadii[4] = { MAX(0.0, radii[0] - halfStroke), MAX(radii[1] - halfStroke, 0.0), MAX(0.0, radii[2] - halfStroke), MAX(0.0, radii[3] - halfStroke) };
                 
-                CGRect rect = CGRectMake(origin.x + strokeWidth / 2.0, origin.y + strokeWidth / 2.0,
-                                         size.width - strokeWidth, size.height - strokeWidth);
-                CGMutablePathRef strokeRoundedPath = TKRoundedPathInRectForRadii(strokeRadii, rect);
+                CGRect strokerect = CGRectMake(origin.x + strokeWidth / 2.0, origin.y + strokeWidth / 2.0,
+                                               size.width - strokeWidth, size.height - strokeWidth);
+                CGMutablePathRef strokeRoundedPath = TKRoundedPathInRectForRadii(strokeRadii, strokerect);
                 
                 // Add path to context and fill it
                 CGContextAddPath(context, strokeRoundedPath);            
@@ -774,7 +799,6 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 - (TKView *)circleInFrame:(CGRect)frame options:(NSDictionary *)options {
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
-    CGSize size = frame.size;
     
     // Additionally keep track of the canvasrect
     CGRect canvasRect = frame;
@@ -816,8 +840,14 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         return view;
     }
     
+    // Also follow the size difference of the canvas vs object
+    CGSize sizeOffset = CGSizeMake(canvasRect.size.width - frame.size.width, canvasRect.size.height - frame.size.height);
+    
     // Create the drawing block
-    TKDrawingBlock drawBlock = ^(CGContextRef context) {
+    TKDrawingBlock block = ^(CGContextRef context, CGRect rect) {
+        // Adjust the size of the object
+        CGSize size = CGSizeMake(rect.size.width - sizeOffset.width, rect.size.height - sizeOffset.height);
+        
         // Alpha
         if ([options objectForKey: AlphaParameterKey]) {
             CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
@@ -962,13 +992,13 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     
     // Store the block into cache
     if (_isCached)
-        [_cache setObject: Block_copy(drawBlock) forKey: options];
+        [_cache setObject: Block_copy(block) forKey: options];
     
     // Wrap up and create the view
     TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
                                                      canvasRect.size.width, canvasRect.size.height) 
-                         andDrawingBlock: drawBlock];
-        
+                         andDrawingBlock: block];
+    
     return view;
 }
 
@@ -980,9 +1010,6 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     
     // Calculate the needed size for the rect
     CGRect bounding = CGPathGetBoundingBox(mainPath);
-    
-    // Store the size
-    CGSize size = bounding.size;
     
     // Additionally keep track of the canvasrect, starts being the main frame
     CGRect canvasRect = bounding;
@@ -1011,7 +1038,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     // Adjust the inner origin, this is where the actual view is located
     origin.x = bounding.origin.x - canvasRect.origin.x;
     origin.y = bounding.origin.y - canvasRect.origin.y;
-
+    
     // Now as we have the frame, check cache for a view with same properties
     // As a key use the NSDictionary of the description
     if (_isCached && [_cache objectForKey: options]) {
@@ -1022,11 +1049,25 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     }
     
     // Transform the path to the new origin
-    CGAffineTransform transform = CGAffineTransformMakeTranslation(-bounding.origin.x + origin.x, -bounding.origin.y + origin.y);
-    __block CGPathRef adjustedPath = CGPathCreateCopyByTransformingPath(mainPath, &transform);
+    CGAffineTransform transform = CGAffineTransformMakeTranslation(origin.x - bounding.origin.x, origin.y - bounding.origin.y);
+	
+	// Use a temp path via which to apply the transformation (for pre iOS 5 compatibility)
+	__block CGPathRef adjustedPath;
+	CGMutablePathRef temp = CGPathCreateMutable();
+    
+    CGPathAddPath(temp, &transform, mainPath);
+    adjustedPath = CGPathCreateCopy(temp);
+    
+    CGPathRelease(temp);
+    
+    // Also follow the size difference of the canvas vs object
+    CGSize sizeOffset = CGSizeMake(canvasRect.size.width - bounding.size.width, canvasRect.size.height - bounding.size.height);
     
     // Create the drawing block
-    TKDrawingBlock drawBlock = ^(CGContextRef context) {
+    TKDrawingBlock block = ^(CGContextRef context, CGRect rect) {
+        // Adjust the size of the object
+        CGSize size = CGSizeMake(rect.size.width - sizeOffset.width, rect.size.height - sizeOffset.height);
+        
         // Drawing code
         // Start with the main inner view
         CGContextSaveGState(context);
@@ -1095,8 +1136,16 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             NSDictionary *offset = [dictionary objectForKey: OffsetParameterKey];
             CGAffineTransform transform = CGAffineTransformMakeTranslation([[offset objectForKey: XCoordinateParameterKey] floatValue],
                                                                            [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-            CGPathRef transformedPath = CGPathCreateCopyByTransformingPath(adjustedPath, &transform);
-            CGContextAddPath(context, transformedPath);
+			
+			// Transform the path via a temp path
+            CGMutablePathRef temp = CGPathCreateMutable();
+            
+            CGPathAddPath(temp, &transform, adjustedPath);
+            CGPathRef transformedPath = CGPathCreateCopy(temp);
+            
+            CGPathRelease(temp);
+            
+			CGContextAddPath(context, transformedPath);
             CGPathRelease(transformedPath);
             
             // Set the color and opacity
@@ -1145,18 +1194,18 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     
     // Cache the block if needed
     if (_isCached) 
-        [_cache setObject: Block_copy(drawBlock) forKey: options];
+        [_cache setObject: Block_copy(block) forKey: options];
     
     // Create and return the view
     TKView *view = [TKView viewWithFrame: canvasRect
-                         andDrawingBlock: drawBlock];
+                         andDrawingBlock: block];
     
     return view;
 }
 
 - (UILabel *)labelInFrame: (CGRect)frame forOptions: (NSDictionary *)description {
     UILabel *label = [[[UILabel alloc] initWithFrame: frame] autorelease];
-    
+        
     // Content
     if ([description objectForKey: ContentStringParameterKey]) {
         label.text = [description objectForKey: ContentStringParameterKey];
@@ -1212,7 +1261,10 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         } else {
             label.font = [UIFont systemFontOfSize: label.font.pointSize];
         }
-    } else if ([description objectForKey: ContentFontNameParameterKey]) {
+    } 
+    
+    if ([description objectForKey: ContentFontNameParameterKey]) {
+        NSLog(@"Font: %@", [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize]);
         label.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize];
     }
     
@@ -1248,7 +1300,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         label.shadowOffset = CGSizeMake([[offset objectForKey: XCoordinateParameterKey] floatValue],
                                         [[offset objectForKey: YCoordinateParameterKey] floatValue]);
     }
-    
+        
     return label;
 }
 
@@ -1270,9 +1322,8 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         if ([button objectForKey: SizeParameterKey]) {
             
             // Generate the view for the button and compress it into an image
-            UIImage *image = [self compressedImageForView: 
-                              [self viewForDescription: button bindings: NULL]];
-
+            UIImage *image = [self compressedImageForDescription: button];
+            
             if ([button objectForKey: ButtonViewStretchable]) {
                 // It is, the stretchable property contains 2 values, the left and top cap widths
                 NSArray *values = [button objectForKey: ButtonViewStretchable];
@@ -1286,7 +1337,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             // Check if an image is present
             if ([button objectForKey: ButtonContentImage]) {
                 // There's an image, render and compress it
-                UIImage *contentImage = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                UIImage *contentImage = [self compressedImageForDescription: [button objectForKey: ButtonContentImage]];
                 [stateImages setObject: contentImage forKey: ButtonNormalStateView];
             }
             
@@ -1303,7 +1354,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Grab the view and compress it to an image
         if ([button objectForKey: SizeParameterKey]) {
-            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            UIImage *image = [self compressedImageForDescription: button];
             
             // Check if it's stretchable
             if ([button objectForKey: ButtonViewStretchable]) {
@@ -1319,7 +1370,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             // Check if an image is present
             if ([button objectForKey: ButtonContentImage]) {
                 // There's an image, render and compress it
-                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                UIImage *image = [self compressedImageForDescription: [button objectForKey: ButtonContentImage]];
                 [stateImages setObject: image forKey: ButtonHighlightedStateView];
             }
             
@@ -1336,7 +1387,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Grab the view and compress it to an image
         if ([button objectForKey: SizeParameterKey]) {
-            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            UIImage *image = [self compressedImageForDescription: button];
             
             // Check if it's stretchable
             if ([button objectForKey: ButtonViewStretchable]) {
@@ -1352,7 +1403,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             // Check if an image is present
             if ([button objectForKey: ButtonContentImage]) {
                 // There's an image, render and compress it
-                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                UIImage *image = [self compressedImageForDescription: [button objectForKey: ButtonContentImage]];
                 [stateImages setObject: image forKey: ButtonSelectedStateView];
             }
             
@@ -1360,7 +1411,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             [states setObject: image forKey: ButtonSelectedStateView];
         }
     }
-
+    
     // Selected highlighted view
     if ([description objectForKey: ButtonHighlightedSelectedStateView]) {
         custom = YES;
@@ -1369,7 +1420,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Grab the view and compress it to an image
         if ([button objectForKey: SizeParameterKey]) {
-            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            UIImage *image = [self compressedImageForDescription: button];
             
             // Check if it's stretchable
             if ([button objectForKey: ButtonViewStretchable]) {
@@ -1385,7 +1436,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             // Check if an image is present
             if ([button objectForKey: ButtonContentImage]) {
                 // There's an image, render and compress it
-                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                UIImage *image = [self compressedImageForDescription: [button objectForKey: ButtonContentImage]];
                 [stateImages setObject: image forKey: ButtonHighlightedSelectedStateView];
             }
             
@@ -1403,7 +1454,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         // Grab the view and compress it to an image
         if ([button objectForKey: SizeParameterKey]) {
             // There is a size, means there is a view to draw
-            UIImage *image = [self compressedImageForView: [self viewForDescription: button bindings: NULL]];
+            UIImage *image = [self compressedImageForDescription: button]; 
             
             // Check if it's stretchable
             if ([button objectForKey: ButtonViewStretchable]) {
@@ -1419,7 +1470,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             // Check if an image is present
             if ([button objectForKey: ButtonContentImage]) {
                 // There's an image, render and compress it
-                UIImage *image = [self compressedImageForView: [self viewForDescription: [button objectForKey: ButtonContentImage] bindings: NULL]];
+                UIImage *image = [self compressedImageForDescription: [button objectForKey: ButtonContentImage]];
                 [stateImages setObject: image forKey: ButtonDisabledStateView];
             }
             
@@ -1463,10 +1514,6 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         button.titleLabel.font = [UIFont systemFontOfSize: [[description objectForKey: ContentFontSizeParameterKey] floatValue]];
     }
     
-    // Add the text
-    if ([description objectForKey: ContentStringParameterKey])
-        [button setTitle: [description objectForKey: ContentStringParameterKey] forState: UIControlStateNormal];
-    
     if ([description objectForKey: ContentFontWeightParameterKey]) {
         NSString *weight = [description objectForKey: ContentFontWeightParameterKey];
         
@@ -1475,9 +1522,15 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         } else {
             button.titleLabel.font = [UIFont systemFontOfSize: button.titleLabel.font.pointSize];
         }
-    } else if ([description objectForKey: ContentFontNameParameterKey]) {
+    } 
+    
+    if ([description objectForKey: ContentFontNameParameterKey]) {
         button.titleLabel.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: button.titleLabel.font.pointSize];
     }
+    
+    // Add the text
+    if ([description objectForKey: ContentStringParameterKey])
+        [button setTitle: [description objectForKey: ContentStringParameterKey] forState: UIControlStateNormal];
     
     // Adjust every custom state, this means images, titles and colors, shadows etc.
     if ([description objectForKey: ButtonNormalStateView]) {
@@ -1517,7 +1570,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             [button setImage: [stateImages objectForKey: ButtonNormalStateView] forState: UIControlStateNormal];
         
         if ([states objectForKey: ButtonNormalStateView])
-            [button setBackgroundImage: [states objectForKey: ButtonNormalStateView] forState: UIControlStateNormal];     
+            [button setBackgroundImage: [states objectForKey: ButtonNormalStateView] forState: UIControlStateNormal];
     }
     
     if ([description objectForKey: ButtonHighlightedStateView]) {
@@ -1667,7 +1720,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         if ([states objectForKey: ButtonSelectedStateView])
             [button setBackgroundImage: [states objectForKey: ButtonSelectedStateView] forState: UIControlStateSelected];
     }
-
+    
     if ([description objectForKey: ButtonHighlightedSelectedStateView]) {
         NSDictionary *selected = [description objectForKey: ButtonHighlightedSelectedStateView];
         
@@ -1707,13 +1760,13 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         if ([states objectForKey: ButtonHighlightedSelectedStateView])
             [button setBackgroundImage: [states objectForKey: ButtonHighlightedSelectedStateView] forState: UIControlStateHighlighted | UIControlStateSelected];
     }
-
+    
     // Check the insets (image)
     if ([[description objectForKey: ButtonContentImageInsets] isKindOfClass: [NSArray class]]) {
         // We have an array of values
         NSArray *values = [description objectForKey: ButtonContentImageInsets];
         UIEdgeInsets insets = UIEdgeInsetsMake([[values objectAtIndex: 0] floatValue], [[values objectAtIndex: 1] floatValue],
-                                                   [[values objectAtIndex: 2] floatValue], [[values objectAtIndex: 3] floatValue]);
+                                               [[values objectAtIndex: 2] floatValue], [[values objectAtIndex: 3] floatValue]);
         [button setImageEdgeInsets: insets];
     } else if ([description objectForKey: ButtonContentImageInsets]) {
         // One value, meant for them all
@@ -1733,7 +1786,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         CGFloat inset = [[description objectForKey: ButtonContentInsets] floatValue];
         [button setContentEdgeInsets: UIEdgeInsetsMake(inset, inset, inset, inset)];
     }
-        
+    
     // Set the frame of the button
     [button setFrame: frame];
     
@@ -1802,7 +1855,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     
     // Keep pointers to the latest used values, 
     CGPoint currentLocation = CGPointMake(0.0, 0.0);
-
+    
     // Create an empty pointer to a string
     NSString *temp;
     
@@ -1822,14 +1875,14 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Scan in the numbers
             CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
-
+            
             // Adjust the command and store it in the array
             [command setEndPoint: pointHolder];
             [commands addObject: command];
             
             // Move the current absolute location
             currentLocation = pointHolder;
-                                    
+            
             // Now check if any numbers follow, if so, additional commands are required
             NSUInteger location = [scanner scanLocation];
             while ([scanner scanFloat: NULL]) {
@@ -1843,7 +1896,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 
                 // Move the current location
                 currentLocation = pointHolder;
-                                
+                
                 // Store the location
                 location = [scanner scanLocation];
             }
@@ -1864,7 +1917,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Move current position
             currentLocation = pointHolder;
-                        
+            
             // Now check if any numbers follow, if so, additional commands are required
             NSUInteger location = [scanner scanLocation];
             while ([scanner scanFloat: NULL]) {
@@ -1884,7 +1937,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             }
         } else if ([uppercase isEqualToString: @"H"]) {
             [command setCommand: TKLineTo];
-                        
+            
             // Only a single number follows
             float nextFloat;
             [scanner scanFloat: &nextFloat];
@@ -1898,7 +1951,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Store the command
             [commands addObject: command];
-                        
+            
             // Now check if any numbers follow, if so, additional commands are required
             while ([scanner scanFloat: &nextFloat]) {
                 // Get the Y coordinate and create the command
@@ -1913,7 +1966,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             }
         } else if ([uppercase isEqualToString: @"V"]) {
             [command setCommand: TKLineTo];
-                        
+            
             // Only a single number follows
             float nextFloat;
             [scanner scanFloat: &nextFloat];
@@ -1927,7 +1980,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Store the command
             [commands addObject: command];
-                        
+            
             // Now check if any numbers follow, if so, additional commands are required
             while ([scanner scanFloat: &nextFloat]) {
                 // Get the Y coordinate and create the command
@@ -1942,15 +1995,15 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             }
         } else if ([uppercase isEqualToString: @"C"]) {
             [command setCommand: TKCubicBezier];
-                        
+            
             // First control point
             CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setControlPoint1: pointHolder];
-                        
+            
             // Second control point
             pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setControlPoint2: pointHolder];
-                        
+            
             // End point
             pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setEndPoint: pointHolder];
@@ -1960,7 +2013,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Store the command
             [commands addObject: command];
-                        
+            
             // Loop around if more are present
             NSUInteger location = [scanner scanLocation];
             while ([scanner scanFloat: NULL]) {
@@ -1974,18 +2027,18 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 // First control point
                 CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setControlPoint1: pointHolder];
-                                
+                
                 // Second control point
                 pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setControlPoint2: pointHolder];
-                                
+                
                 // End point
                 pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setEndPoint: pointHolder];
                 
                 // Move the current location
                 currentLocation = pointHolder;
-                                
+                
                 // Store the command
                 [commands addObject: additionalCommand];
                 
@@ -2010,11 +2063,11 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             } else {
                 [command setControlPoint1: currentLocation];
             }
-                        
+            
             // Second control point
             CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setControlPoint2: pointHolder];
-                        
+            
             // End point
             pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setEndPoint: pointHolder];
@@ -2024,7 +2077,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Move the current point
             currentLocation = pointHolder;
-                        
+            
             // Loop around if more are present
             NSUInteger location = [scanner scanLocation];
             
@@ -2043,19 +2096,19 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 
                 CGPoint nextControlPoint = CGPointMake(currentLocation.x + offset.width, currentLocation.y + offset.height);
                 [additionalCommand setControlPoint1: nextControlPoint];
-                                
+                
                 // Second control point
                 pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setControlPoint2: pointHolder];
                 previousControlPoint = pointHolder;
-                                
+                
                 // End point
                 pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setEndPoint: pointHolder];
                 
                 // Move the current location
                 currentLocation = pointHolder;
-                                
+                
                 // Store the command
                 [commands addObject: additionalCommand];
                 
@@ -2064,11 +2117,11 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             }
         } else if ([uppercase isEqualToString: @"Q"]) {
             [command setCommand: TKQuadBezier];
-                        
+            
             // Control point
             CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setControlPoint1: pointHolder];
-                                    
+            
             // End point
             pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setEndPoint: pointHolder];
@@ -2078,7 +2131,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Store the command
             [commands addObject: command];
-                        
+            
             // Loop around if more are present
             NSUInteger location = [scanner scanLocation];
             while ([scanner scanFloat: NULL]) {
@@ -2092,7 +2145,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 // Control point
                 CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setControlPoint1: pointHolder];
-                                                
+                
                 // End point
                 pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setEndPoint: pointHolder];
@@ -2108,7 +2161,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             }
         } else if ([uppercase isEqualToString: @"T"]) {
             [command setCommand: TKQuadBezier];
-                        
+            
             // As this is a "smooth" version, we need to see whether the previous command was a Cubic Bezier or not
             TKPathCommand *lastCommand = [commands lastObject];
             
@@ -2124,7 +2177,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             } else {
                 [command setControlPoint1: currentLocation];
             }
-                                    
+            
             // End point
             CGPoint pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
             [command setEndPoint: pointHolder];
@@ -2134,7 +2187,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             // Move the current point
             currentLocation = pointHolder;
-                        
+            
             // Loop around if more are present
             NSUInteger location = [scanner scanLocation];
             
@@ -2154,14 +2207,14 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 CGPoint nextControlPoint = CGPointMake(currentLocation.x + offset.width, currentLocation.y + offset.height);
                 [additionalCommand setControlPoint1: nextControlPoint];
                 previousControlPoint = nextControlPoint;
-                                
+                
                 // End point
                 pointHolder = relative ? [self pointFromScanner: scanner relativeToPoint: currentLocation] : [self pointFromScanner: scanner relativeToPoint: CGPointZero];
                 [additionalCommand setEndPoint: pointHolder];
                 
                 // Move the current location
                 currentLocation = pointHolder;
-                                
+                
                 // Store the command
                 [commands addObject: additionalCommand];
                 
@@ -2217,7 +2270,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 + (ThemeKit *)defaultEngine {
     static dispatch_once_t pred;
     static ThemeKit *shared = nil;
-        
+    
     dispatch_once(&pred, ^{
         shared = [[ThemeKit alloc] init];
     });
@@ -2232,7 +2285,8 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         _isCached = YES;
         _cache = [[NSMutableDictionary alloc] init];
         _JSONCache = [[NSMutableDictionary alloc] init];
-                
+        _imageCache = [[NSMutableDictionary alloc] init];
+        
         // Observe notification about memory warning
         [[NSNotificationCenter defaultCenter] addObserver: self selector: @selector(flushCache) name: UIApplicationDidReceiveMemoryWarningNotification object: nil];
     }
@@ -2267,7 +2321,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     if (_isCached) {
         [_JSONCache setObject: JSONDictionary forKey: path];
     }
-       
+    
     // And return a brand new view with the JSON
     // - this is to avoid returning a view that is already in use
     return [self viewHierarchyForJSONDictionary: JSONDictionary bindings: bindings];
@@ -2293,31 +2347,73 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     return [self viewHierarchyForJSONDictionary: JSONDictionary bindings: bindings];
 }
 
+- (CGContextRef)newBitmapContextOfSize:(CGSize) size {
+    CGContextRef    context = NULL;
+    CGColorSpaceRef colorSpace;
+    void *          bitmapData;
+    int             bitmapByteCount;
+    int             bitmapBytesPerRow;
+    
+    bitmapBytesPerRow   = (size.width * 4);
+    bitmapByteCount     = (bitmapBytesPerRow * size.height);
+    
+    colorSpace = CGColorSpaceCreateDeviceRGB();
+    bitmapData = malloc( bitmapByteCount );
+    if (bitmapData == NULL) {
+        fprintf (stderr, "Memory not allocated!");
+        CGColorSpaceRelease(colorSpace);
+        return NULL;
+    }
+    context = CGBitmapContextCreate (bitmapData,
+                                     size.width,
+                                     size.height,
+                                     8,      // bits per component
+                                     bitmapBytesPerRow,
+                                     colorSpace,
+                                     kCGImageAlphaPremultipliedLast);
+    CGContextSetAllowsAntialiasing (context,NO);
+    if (context== NULL) {
+        free (bitmapData);
+        CGColorSpaceRelease(colorSpace);
+        fprintf (stderr, "Context not created!");
+        return NULL;
+    }
+    CGColorSpaceRelease( colorSpace );
+    return context;
+}
+
 - (UIImage *)compressedImageForView: (UIView *)view {
+    // Weird bug that exists on iPhone 3G, has something do to with CGContext stacks, due to this push a 
+    // small context on the stack to avoid the main context being ruined
+    CGContextRef bitmap = [self newBitmapContextOfSize: CGSizeMake(1.0, 1.0)];
+    UIGraphicsPushContext(bitmap);
+    
     // Create a suitable context and draw the view's layer into it (iOS 4 > uses the scaled version)
-    if (NULL != UIGraphicsBeginImageContextWithOptions)
+    if (UIGraphicsBeginImageContextWithOptions != NULL)
         UIGraphicsBeginImageContextWithOptions(view.frame.size, NO, [[UIScreen mainScreen] scale]);
-    else
+    else 
         UIGraphicsBeginImageContext(view.frame.size);
     
-    // Grab the context
     CGContextRef context = UIGraphicsGetCurrentContext();
     
     // -renderInContext: renders in the coordinate space of the layer,
     // so we must first apply the layer's geometry to the graphics context 
     // (i.e move the context to where the layer is)
     CGContextSaveGState(context);
+    
     // Center the context around the view's anchor point
     //CGContextTranslateCTM(context, [view center].x, [view center].y);
+    
     // Apply the view's transform about the anchor point
     //CGContextConcatCTM(context, [view transform]);
+    
     // Offset by the portion of the bounds left of and above the anchor point
-    /*CGContextTranslateCTM(context, 
-                          -[view bounds].size.width * [[view layer] anchorPoint].x,
-                          -[view bounds].size.height * [[view layer] anchorPoint].y);*/
+    //CGContextTranslateCTM(context, 
+    //                      -[view bounds].size.width * [[view layer] anchorPoint].x,
+    //                      -[view bounds].size.height * [[view layer] anchorPoint].y);
     
     // Render the layer hierarchy to the current context
-    [[view layer] renderInContext:context];
+    [view.layer renderInContext:context];
     
     // Restore the context
     CGContextRestoreGState(context);
@@ -2326,6 +2422,10 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     
     UIGraphicsEndImageContext();
+    
+    // The weird CG stack bug, pop the small buffer stack we pushed earlier
+    UIGraphicsPopContext();
+    CGContextRelease(bitmap);
         
     return image;
 }
@@ -2336,6 +2436,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     
     [_cache release];
     [_JSONCache release];
+    [_imageCache release];
     [super dealloc];
 }
 
