@@ -10,94 +10,8 @@
 #import "TKPathCommand.h"
 #import "TKView.h"
 
-#pragma mark - UIColor Extension
-
-@implementation UIColor (Extensions)
-
-// Converting web colors into UIColor objects
-+ (UIColor *)colorForWebColor: (NSString *)colorCode {
-    // Start by mutating the string
-    NSMutableString *string = [NSMutableString stringWithString: colorCode];
-    
-    // Remove all #
-    [string replaceOccurrencesOfString: @"#" withString: @"" options: 0 range: NSMakeRange(0, [string length])];
-    
-    // Check if clear color needed
-    if ([string isEqualToString: @"clear"]) {
-        return [UIColor clearColor];
-    }
-    
-    // Check if size is enough
-    int length = [string length];
-    switch (length) {
-        case 1:
-            // The pattern is easy to form
-            [string appendFormat: @"%@%@%@%@%@", string, string, string, string, string];
-            break;
-        case 2:
-            // Once again, repeat the pattern
-            [string appendFormat: @"%@%@", string, string];
-            break;
-        case 3:
-            // And again, repeat the pattern
-            [string appendFormat: @"%@", string];
-            break;
-        case 4:
-            // Now it's a bit more difficult, repeat, but then cut the end off
-            [string appendString: [string substringToIndex: 2]];
-            break;
-        case 5:
-            // Same as with four, but add one less
-            [string appendString: [string substringToIndex: 1]];
-            break;
-        default:
-            break;
-    }
-    
-    // Storage for all the values
-    unsigned int color;
-    
-    // Now we can proceed to calculate the values, start by creating a range of the string to look at
-    [[NSScanner scannerWithString: string] scanHexInt: &color]; // Grabs color value
-    
-    // Return appropriate UIColor
-    return [UIColor colorWithRed: (float)(((color >> 16) & 0xFF) / 255.0)
-                           green: (float)(((color >> 8) & 0xFF) / 255.0)
-                            blue: (float)((color & 0xFF) / 255.0)
-                           alpha: 1.0];
-}
-
-- (NSString *)hexValue {
-    // Get all the components
-    const CGFloat *c = CGColorGetComponents(self.CGColor);
-    
-    CGFloat a = MIN(MAX(c[CGColorGetNumberOfComponents(self.CGColor) - 1], 0), 1);
-    CGFloat r = MIN(MAX(c[0], 0), 1);
-    CGFloat g = MIN(MAX(c[0], 0), 1);
-    CGFloat b = MIN(MAX(c[0], 0), 1);
-    
-    if (CGColorSpaceGetModel(CGColorGetColorSpace(self.CGColor)) != kCGColorSpaceModelMonochrome) {
-        g = MIN(MAX(c[1], 0), 1);
-        b = MIN(MAX(c[2], 0), 1);
-    }
-    
-    // Convert to hex string between 0x00 and 0xFF
-    return [NSString stringWithFormat:@"0x%02X%02X%02X%02X",
-            (NSInteger)(a * 255), (NSInteger)(r * 255), (NSInteger)(g * 255), (NSInteger)(b * 255)];
-}
-
-@end
-
-#pragma mark - C helpers
-void TKContextSetBlendModeForString(CGContextRef context, NSString *string);
-void TKContextAddShadowWithOptions(CGContextRef context, NSDictionary *options);
-void TKContextStrokePathWithOptions(CGContextRef context, NSDictionary *options);
-void TKContextDrawGradientForOptions(CGContextRef context, NSDictionary *options, CGPoint startPoint, CGPoint endPoint);
-
-CGRect TKShadowRectForRectAndOptions(CGRect rect, NSDictionary *options);
-CGRect TKStrokeRectForRectAndWidth(CGRect rect, CGFloat width);
-void TKBalanceCornerRadiiIntoSize(CGFloat *radii, CGSize size);
-CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect);
+#import "TKHelpers.h"
+#import "TKConstants.h"
 
 #pragma mark - Drawing Extension
 
@@ -132,191 +46,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect);
 - (NSArray *)arrayOfPathCommandsFromSVGDescription: (NSString *)description;
 - (CGPoint)pointFromScanner: (NSScanner *)scanner relativeToPoint: (CGPoint)currentPoint;
 
-// Cache
-- (void)flushCache;
-
 @end
-
-#pragma mark - C helpers
-
-void TKContextSetBlendModeForString(CGContextRef context, NSString *string) {
-    CGBlendMode blendMode;
-    if ([string isEqualToString: @"overlay"]) {
-        blendMode = kCGBlendModeOverlay;
-    } else if ([string isEqualToString: @"multiply"]) {
-        blendMode = kCGBlendModeMultiply;
-    } else if ([string isEqualToString: @"softlight"]) {
-        blendMode = kCGBlendModeSoftLight;
-    } else {
-        blendMode = kCGBlendModeNormal;
-    }
-    
-    CGContextSetBlendMode(context, blendMode);
-}
-void TKContextAddShadowWithOptions(CGContextRef context, NSDictionary *options) {
-    NSDictionary *offsetOptions = [options objectForKey: OffsetParameterKey];
-    
-    CGSize offset = CGSizeMake([[offsetOptions objectForKey: XCoordinateParameterKey] floatValue], [[offsetOptions objectForKey: YCoordinateParameterKey] floatValue]);
-    CGFloat blur = 0.0;
-    
-    // Adjust blur if key is present
-    if ([options objectForKey: BlurParameterKey]) {
-        blur = [[options objectForKey: BlurParameterKey] floatValue];
-    }
-    
-    CGFloat alpha = 1.0;
-    
-    if ([options objectForKey: AlphaParameterKey])
-        alpha = [[options objectForKey: AlphaParameterKey] floatValue];
-    
-    if ([options objectForKey: ColorParameterKey])
-        CGContextSetShadowWithColor(context, offset, blur, [[UIColor colorForWebColor: [options objectForKey: ColorParameterKey]] colorWithAlphaComponent: alpha].CGColor);
-    else
-        CGContextSetShadowWithColor(context, offset, blur, [[UIColor blackColor] colorWithAlphaComponent: alpha].CGColor);
-}
-void TKContextStrokePathWithOptions(CGContextRef context, NSDictionary *options) {
-    // Check if blend mode is present
-    if ([options objectForKey: BlendModeParameterKey]) {
-        // Get the blend mode and apply it to the context
-        TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
-    }
-    
-    if ([options objectForKey: AlphaParameterKey])
-        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]);
-    
-    if ([options objectForKey: ColorParameterKey])
-        CGContextSetStrokeColorWithColor(context, [UIColor colorForWebColor: [options objectForKey: ColorParameterKey]].CGColor);
-    else
-        CGContextSetStrokeColorWithColor(context, [UIColor blackColor].CGColor);
-    
-    // Set the width
-    CGContextSetLineWidth(context, [[options objectForKey: WidthParameterKey] floatValue]);
-    
-    // Stroke it
-    CGContextStrokePath(context);
-}
-void TKContextDrawGradientForOptions(CGContextRef context, NSDictionary *options, CGPoint startPoint, CGPoint endPoint) {
-    // Apply the blend mode to the context if one is present
-    if ([options objectForKey: BlendModeParameterKey]) {
-        TKContextSetBlendModeForString(context, [options objectForKey: BlendModeParameterKey]);
-    }
-    
-    // Check if alpha is present
-    if ([options objectForKey: AlphaParameterKey]) {
-        CGContextSetAlpha(context, [[options objectForKey: AlphaParameterKey] floatValue]); 
-    }
-    
-    // Create the gradient
-    NSArray *colors = [options objectForKey: GradientColorsParameterKey];
-    NSMutableArray *CGColors = [NSMutableArray arrayWithCapacity: [colors count]];
-    for (NSString *color in colors) {
-        [CGColors insertObject: (id)[UIColor colorForWebColor: color].CGColor atIndex: [colors indexOfObject: color]];
-    }
-    
-    // And then the locations
-    colors = [options objectForKey: GradientPositionsParameterKey];
-    CGFloat *positions = (CGFloat *)calloc(sizeof(CGFloat), [colors count]);
-    for (NSNumber *number in colors) {
-        positions[[colors indexOfObject: number]] = [number floatValue];
-    }
-    
-    CGColorSpaceRef rgbSpace = CGColorSpaceCreateDeviceRGB();
-	CGGradientRef gradient = CGGradientCreateWithColors(rgbSpace, (CFArrayRef)CGColors, positions);
-    CGColorSpaceRelease(rgbSpace);
-    free(positions);
-    
-    //Draw the gradient
-    CGContextDrawLinearGradient(context, gradient, startPoint, endPoint, 0);
-    
-    // Release the gradient
-    CGGradientRelease(gradient);
-}
-
-CGRect TKShadowRectForRectAndOptions(CGRect rect, NSDictionary *options) {
-    NSDictionary *offsetDictionary = [options objectForKey: OffsetParameterKey];
-    CGSize offset = CGSizeMake([[offsetDictionary objectForKey: XCoordinateParameterKey] floatValue], [[offsetDictionary objectForKey: YCoordinateParameterKey] floatValue]);
-    CGFloat blur = [[options objectForKey: BlurParameterKey] floatValue];
-    
-    // Create the shadow rect
-    CGRect shadowRect = rect;
-    
-    CGPoint shadowOrigin = shadowRect.origin;
-    shadowOrigin.x += offset.width - blur;
-    shadowOrigin.y += offset.height - blur;
-    shadowRect.origin = shadowOrigin;
-    
-    CGSize shadowSize = shadowRect.size;
-    shadowSize.width += 2 * blur;
-    shadowSize.height += 2 * blur;
-    shadowRect.size = shadowSize;
-    
-    // Return the resulting rect
-    return shadowRect;
-}
-CGRect TKStrokeRectForRectAndWidth(CGRect rect, CGFloat width) {
-    // Create a stroke rect
-    CGRect strokeRect = rect;
-    CGPoint strokeOrigin = strokeRect.origin;
-    strokeOrigin.x -= width;
-    strokeOrigin.y -= width;
-    strokeRect.origin = strokeOrigin;
-    
-    CGSize strokeSize = strokeRect.size;
-    strokeSize.width += 2 * width;
-    strokeSize.height += 2 * width;
-    strokeRect.size = strokeSize;
-    
-    // Return the result
-    return strokeRect;
-}
-void TKBalanceCornerRadiiIntoSize(CGFloat *radii, CGSize size) {
-    // This method is passed an array of floats always 4 long, compare each pair
-    // The order is top-right bottom-right bottom-left top-left (clockwise, beginning in the top-right)    
-    // None should be larger than half of the either side
-    // (as they both connect the width to height, we need to make 8 comparisons)
-    CGFloat halfWidth = roundf(size.width / 2.0);
-    CGFloat halfHeight = roundf(size.height / 2.0);
-    
-    // Top right
-    radii[0] = radii[0] > halfWidth ? halfWidth : radii[0];
-    radii[0] = radii[0] > halfHeight ? halfHeight : radii[0];
-    
-    // Bottom right
-    radii[1] = radii[1] > halfWidth ? halfWidth : radii[1];
-    radii[1] = radii[1] > halfHeight ? halfHeight : radii[1];
-    
-    // Bottom left
-    radii[2] = radii[2] > halfWidth ? halfWidth : radii[2];
-    radii[2] = radii[2] > halfHeight ? halfHeight : radii[2];
-    
-    // Top left
-    radii[3] = radii[3] > halfWidth ? halfWidth : radii[3];
-    radii[3] = radii[3] > halfHeight ? halfHeight : radii[3];
-}
-CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
-    // There has to be 4 values in the radii array
-    CGMutablePathRef roundedPath = CGPathCreateMutable();
-    CGPathMoveToPoint(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y + radii[3], 
-                 radii[3], -M_PI / 2.0, M_PI, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x, rect.origin.y + rect.size.height - radii[2]);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + radii[2], rect.origin.y + rect.size.height - radii[2], 
-                 radii[2], M_PI, M_PI / 2.0, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + rect.size.width - radii[1], rect.origin.y + rect.size.height);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + rect.size.width - radii[1], rect.origin.y + rect.size.height - radii[1], 
-                 radii[1], M_PI / 2.0, 0.0f, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + rect.size.width, rect.origin.y + radii[0]);
-    CGPathAddArc(roundedPath, NULL, rect.origin.x + rect.size.width - radii[0], rect.origin.y + radii[0],
-                 radii[0], 0.0f, -M_PI / 2.0, 1);
-    
-    CGPathAddLineToPoint(roundedPath, NULL, rect.origin.x + radii[3], rect.origin.y);
-    
-    [(id)roundedPath autorelease];
-    return roundedPath;
-}
 
 #pragma mark - Drawing Implementation
 
@@ -353,7 +83,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     UIView *view = [[[UIView alloc] initWithFrame: CGRectMake(origin.x, origin.y, size.width, size.height)] autorelease];
     [view setBackgroundColor: [UIColor clearColor]];
     
-    if (view) {
+    if ([JSON objectForKey: SubviewSectionKey]) {
         // Grab the subviews
         NSArray *options = [JSON objectForKey: SubviewSectionKey];
         
@@ -477,8 +207,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                           properties, GradientFillOptionKey, nil];
     
     // Create the image
-    UIImage *image = [self compressedImageForView: 
-                      [self viewForDescription: view bindings: NULL]];
+    UIImage *image = [self compressedImageForDescription: view];
     
     // Make it stretchable
     image = [image stretchableImageWithLeftCapWidth: 1.0 topCapHeight: height - 1.0];
@@ -489,16 +218,20 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 - (UIImage *)compressedImageForDescription: (NSDictionary *)description {
     UIImage *image;
     
+#if kCachingEnabled
     // Check the cache
-    if (_isCached && [_imageCache objectForKey: description]) {
+    if ([_imageCache objectForKey: description]) {
         return [_imageCache objectForKey: description];
     }
-    
+#endif
+        
     image = [self compressedImageForView: [self viewForDescription: description bindings: NULL]];
     
+#if kCachingEnabled
     // Store the image to the cache
-    if (_isCached)
+    if (image)
         [_imageCache setObject: image forKey: description];
+#endif
     
     return image;
 }
@@ -537,9 +270,10 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     origin.x = frame.origin.x - canvasRect.origin.x;
     origin.y = frame.origin.y - canvasRect.origin.y;
     
+#if kCachingEnabled
     // Now as we have the frame, check cache for a view with same properties
     // As a key use the NSDictionary
-    if (_isCached && [_cache objectForKey: options]) {
+    if ([_cache objectForKey: options]) {
         TKDrawingBlock drawBlock = [_cache objectForKey: options];
         TKView *result = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
                                                            canvasRect.size.width, canvasRect.size.height)
@@ -547,6 +281,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         return result;
     }
+#endif
     
     // Also follow the size difference of the canvas vs object
     CGSize sizeOffset = CGSizeMake(canvasRect.size.width - frame.size.width, canvasRect.size.height - frame.size.height);
@@ -670,7 +405,11 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
             
-            // Start by clipping to the interior
+            // Offset 
+            CGSize offset = CGSizeMake([[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                       [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
+            
+            // Start by adding the main path into the context
             if (rounded) {            
                 // Add path to context and fill it
                 CGContextAddPath(context, roundedPath);            
@@ -678,41 +417,38 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
                 CGContextAddRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
             }
             
+            // Create the inverse path
+            CGPathRef currentPath = CGContextCopyPath(context);
+            CGMutablePathRef inversePath = CGPathCreateMutableCopy(currentPath);
+            CGPathAddRect(inversePath, NULL, CGRectInfinite);
+            CGPathRelease(currentPath);
+            
+            // Clip to the main path
             CGContextClip(context);
             
-            // Add bounding
-            CGContextAddRect(context, CGContextGetClipBoundingBox(context));
+            // Set the shadow settings
+            CGFloat blur = 0.0;
+            if ([dictionary objectForKey: BlurParameterKey])
+                blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
             
-            // Add shifted interior by the offset of the inner shadow
-            if (rounded) {
-                CGRect shadowrect = CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                                               origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
-                                               size.width, size.height);
-                CGMutablePathRef shadowRoundedPath = TKRoundedPathInRectForRadii(radii, shadowrect);
-                
-                CGContextAddPath(context, shadowRoundedPath);            
-            } else {
-                CGContextAddRect(context, CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
-                                                     origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue],
-                                                     size.width, size.height));
-            }
+            UIColor *color = [UIColor blackColor];
+            if ([dictionary objectForKey: ColorParameterKey])
+                color = [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]];
             
-            // Set the color and opacity
-            if ([dictionary objectForKey: ColorParameterKey]) {
-                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-            }
+            if ([dictionary objectForKey: AlphaParameterKey])
+                color = [color colorWithAlphaComponent: [[dictionary objectForKey: AlphaParameterKey] floatValue]];
             
-            if ([dictionary objectForKey: AlphaParameterKey]) {
-                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-            }
+            CGContextSetShadowWithColor(context, offset, blur, color.CGColor);
             
-            // Set blend mode
             if ([dictionary objectForKey: BlendModeParameterKey]) {
                 TKContextSetBlendModeForString(context, [dictionary objectForKey: BlendModeParameterKey]);
             }
             
-            // Fill by using EO rule
+            CGContextAddPath(context, inversePath);
+            
+            // Fill the inverse path
             CGContextEOFillPath(context);
+            CGPathRelease(inversePath);
             
             CGContextRestoreGState(context);
         }
@@ -784,9 +520,10 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         }
     };
     
+#if kCachingEnabled
     // Store into cache, if needed. Use the same key created before
-    if (_isCached)
-        [_cache setObject: Block_copy(block) forKey: options];
+    [_cache setObject: Block_copy(block) forKey: options];
+#endif
     
     // Wrap up and create the resulting view
     TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
@@ -829,8 +566,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     origin.x = frame.origin.x - canvasRect.origin.x;
     origin.y = frame.origin.y - canvasRect.origin.y;
     
+#if kCachingEnabled
     // Check cache
-    if (_isCached && [_cache objectForKey: options]) {
+    if ([_cache objectForKey: options]) {
         TKDrawingBlock block = [_cache objectForKey: options];
         
         TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.x, 
@@ -839,6 +577,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         return view;
     }
+#endif
     
     // Also follow the size difference of the canvas vs object
     CGSize sizeOffset = CGSizeMake(canvasRect.size.width - frame.size.width, canvasRect.size.height - frame.size.height);
@@ -901,36 +640,47 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
             
-            // Start by clipping to the interior
+            
+            // Offset 
+            CGSize offset = CGSizeMake([[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                       [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
+            
+            // Start by adding the main path into the context
             CGContextAddEllipseInRect(context, CGRectMake(origin.x, origin.y, size.width, size.height));
             
+            // Create the inverse path
+            CGPathRef currentPath = CGContextCopyPath(context);
+            CGMutablePathRef inversePath = CGPathCreateMutableCopy(currentPath);
+            CGPathAddRect(inversePath, NULL, CGRectInfinite);
+            CGPathRelease(currentPath);
+            
+            // Clip to the main path
             CGContextClip(context);
             
-            // Add bounding
-            CGContextAddRect(context, CGContextGetClipBoundingBox(context));
+            // Set the shadow settings
+            CGFloat blur = 0.0;
+            if ([dictionary objectForKey: BlurParameterKey])
+                blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
             
-            // Add shifted interior by the offset of the inner shadow
-            CGContextAddEllipseInRect(context, CGRectMake(origin.x + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue], 
-                                                          origin.y + [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue], 
-                                                          size.width, size.height));
+            UIColor *color = [UIColor blackColor];
+            if ([dictionary objectForKey: ColorParameterKey])
+                color = [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]];
             
-            // Set the color and opacity
-            if ([dictionary objectForKey: ColorParameterKey]) {
-                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-            }
+            if ([dictionary objectForKey: AlphaParameterKey])
+                color = [color colorWithAlphaComponent: [[dictionary objectForKey: AlphaParameterKey] floatValue]];
             
-            if ([dictionary objectForKey: AlphaParameterKey]) {
-                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-            }
+            CGContextSetShadowWithColor(context, offset, blur, color.CGColor);
             
-            // Set blend mode
             if ([dictionary objectForKey: BlendModeParameterKey]) {
                 TKContextSetBlendModeForString(context, [dictionary objectForKey: BlendModeParameterKey]);
             }
             
-            // Fill by using EO rule
-            CGContextEOFillPath(context);
+            CGContextAddPath(context, inversePath);
             
+            // Fill the inverse path
+            CGContextEOFillPath(context);
+            CGPathRelease(inversePath);
+                
             CGContextRestoreGState(context);
         }
         
@@ -991,8 +741,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     };
     
     // Store the block into cache
-    if (_isCached)
-        [_cache setObject: Block_copy(block) forKey: options];
+#if kCachingEnabled
+    [_cache setObject: Block_copy(block) forKey: options];
+#endif
     
     // Wrap up and create the view
     TKView *view = [TKView viewWithFrame: CGRectMake(frame.origin.x - origin.x, frame.origin.y - origin.y, 
@@ -1039,14 +790,16 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     origin.x = bounding.origin.x - canvasRect.origin.x;
     origin.y = bounding.origin.y - canvasRect.origin.y;
     
+#if kCachingEnabled
     // Now as we have the frame, check cache for a view with same properties
     // As a key use the NSDictionary of the description
-    if (_isCached && [_cache objectForKey: options]) {
+    if ([_cache objectForKey: options]) {
         TKDrawingBlock drawBlock = [_cache objectForKey: options];
         TKView *view = [TKView viewWithFrame: canvasRect
                              andDrawingBlock: drawBlock];
         return view;
     }
+#endif
     
     // Transform the path to the new origin
     CGAffineTransform transform = CGAffineTransformMakeTranslation(origin.x - bounding.origin.x, origin.y - bounding.origin.y);
@@ -1072,7 +825,36 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         // Start with the main inner view
         CGContextSaveGState(context);
         
-        // Retain the path and add it to the context for filling
+        // Adjust the path according to the rect
+        CGRect pathBounding = CGPathGetBoundingBox(adjustedPath);
+        CGFloat xRatio = CGRectGetWidth(rect) /  CGRectGetWidth(pathBounding);
+        CGFloat yRatio = CGRectGetHeight(rect) / CGRectGetHeight(pathBounding);
+                
+        // Transform the path one more time
+        // This will ensure the path is always within the given rect
+        if (xRatio > yRatio && yRatio < 1.0) {
+            // Resize in terms of Y axis (as that is bigger)
+            CGMutablePathRef temp = CGPathCreateMutable();
+            CGAffineTransform transform = CGAffineTransformMakeScale(yRatio, yRatio);
+            CGPathAddPath(temp, &transform, adjustedPath);
+
+            CGPathRelease(adjustedPath);
+            adjustedPath = CGPathCreateCopy(temp);
+            
+            CGPathRelease(temp);
+        } else if (xRatio < yRatio && xRatio < 1.0) {            
+            // Resize in terms of X axis
+            CGMutablePathRef temp = CGPathCreateMutable();
+            CGAffineTransform transform = CGAffineTransformMakeScale(xRatio, xRatio);
+            CGPathAddPath(temp, &transform, adjustedPath);
+            
+            CGPathRelease(adjustedPath);
+            adjustedPath = CGPathCreateCopy(temp);
+            
+            CGPathRelease(temp);
+        }
+        
+        // Add the path to the context for filling
         CGContextAddPath(context, adjustedPath);
         
         // If shadow needed, draw it
@@ -1125,45 +907,46 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             NSDictionary *dictionary = [options objectForKey: InnerShadowOptionKey];
             
-            // Start by clipping to the interior
+            
+            // Offset 
+            CGSize offset = CGSizeMake([[[dictionary objectForKey: OffsetParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                       [[[dictionary objectForKey: OffsetParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
+            
+            // Start by adding the main path into the context
             CGContextAddPath(context, adjustedPath);            
+            
+            // Create the inverse path
+            CGPathRef currentPath = CGContextCopyPath(context);
+            CGMutablePathRef inversePath = CGPathCreateMutableCopy(currentPath);
+            CGPathAddRect(inversePath, NULL, CGRectInfinite);
+            CGPathRelease(currentPath);
+            
+            // Clip to the main path
             CGContextClip(context);
             
-            // Add bounding
-            CGContextAddRect(context, CGContextGetClipBoundingBox(context));
+            // Set the shadow settings
+            CGFloat blur = 0.0;
+            if ([dictionary objectForKey: BlurParameterKey])
+                blur = [[dictionary objectForKey: BlurParameterKey] floatValue];
             
-            // Add shifted interior by the offset of the inner shadow
-            NSDictionary *offset = [dictionary objectForKey: OffsetParameterKey];
-            CGAffineTransform transform = CGAffineTransformMakeTranslation([[offset objectForKey: XCoordinateParameterKey] floatValue],
-                                                                           [[offset objectForKey: YCoordinateParameterKey] floatValue]);
-			
-			// Transform the path via a temp path
-            CGMutablePathRef temp = CGPathCreateMutable();
+            UIColor *color = [UIColor blackColor];
+            if ([dictionary objectForKey: ColorParameterKey])
+                color = [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]];
             
-            CGPathAddPath(temp, &transform, adjustedPath);
-            CGPathRef transformedPath = CGPathCreateCopy(temp);
+            if ([dictionary objectForKey: AlphaParameterKey])
+                color = [color colorWithAlphaComponent: [[dictionary objectForKey: AlphaParameterKey] floatValue]];
             
-            CGPathRelease(temp);
+            CGContextSetShadowWithColor(context, offset, blur, color.CGColor);
             
-			CGContextAddPath(context, transformedPath);
-            CGPathRelease(transformedPath);
-            
-            // Set the color and opacity
-            if ([dictionary objectForKey: ColorParameterKey]) {
-                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
-            }
-            
-            if ([dictionary objectForKey: AlphaParameterKey]) {
-                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
-            }
-            
-            // Set blend mode
             if ([dictionary objectForKey: BlendModeParameterKey]) {
                 TKContextSetBlendModeForString(context, [dictionary objectForKey: BlendModeParameterKey]);
             }
             
-            // Fill by using EO rule
+            CGContextAddPath(context, inversePath);
+            
+            // Fill the inverse path
             CGContextEOFillPath(context);
+            CGPathRelease(inversePath);
             
             CGContextRestoreGState(context);
         }
@@ -1190,11 +973,45 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
             
             CGContextRestoreGState(context);
         }
+        
+        // Inner (iOS 5+ only)
+        if (CGPathCreateCopyByStrokingPath != NULL) {
+            // The dictionary
+            NSDictionary *dictionary = [options objectForKey: InnerStrokeOptionKey];
+            
+            // The necessary function exists, proceed with creating the inner stroke
+            CGContextSaveGState(context);
+            
+            // Start by clipping the context
+            CGContextAddPath(context, adjustedPath);
+            CGContextClip(context);
+            
+            // Stroke the existing path
+            CGFloat width = 2 * [[dictionary objectForKey: WidthParameterKey] floatValue];
+            CGPathRef strokePath = CGPathCreateCopyByStrokingPath(adjustedPath, NULL, width, kCGLineCapButt, kCGLineJoinRound, 4.0);
+            
+            CGContextAddPath(context, strokePath);
+            
+            if ([dictionary objectForKey: ColorParameterKey]) {
+                CGContextSetFillColorWithColor(context, [UIColor colorForWebColor: [dictionary objectForKey: ColorParameterKey]].CGColor);
+            }
+            
+            if ([dictionary objectForKey: AlphaParameterKey]) {
+                CGContextSetAlpha(context, [[dictionary objectForKey: AlphaParameterKey] floatValue]);
+            }
+            
+            CGContextFillPath(context);
+            
+            CGPathRelease(strokePath);
+            
+            CGContextRestoreGState(context);
+        }
     };   
     
     // Cache the block if needed
-    if (_isCached) 
-        [_cache setObject: Block_copy(block) forKey: options];
+#if kCachingEnabled
+    [_cache setObject: Block_copy(block) forKey: options];
+#endif
     
     // Create and return the view
     TKView *view = [TKView viewWithFrame: canvasRect
@@ -1264,7 +1081,6 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     } 
     
     if ([description objectForKey: ContentFontNameParameterKey]) {
-        NSLog(@"Font: %@", [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize]);
         label.font = [UIFont fontWithName: [description objectForKey: ContentFontNameParameterKey] size: label.font.pointSize];
     }
     
@@ -1560,10 +1376,11 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         if ([normal objectForKey: ContentGradientParameterKey]) {
             // Apply a gradient to the text
-            UIImage *gradient = [self patternGradientForGradientProperties: [normal objectForKey: ContentGradientParameterKey]
-                                                                    height: button.titleLabel.frame.size.height];
+            NSString *title = [button titleForState: UIControlStateNormal];
+            UIImage *image = [self patternGradientForGradientProperties: [normal objectForKey: ContentGradientParameterKey]
+                                                                 height: [title sizeWithFont: button.titleLabel.font].height + 3.0];
             
-            [button setTitleColor: [UIColor colorWithPatternImage: gradient] forState: UIControlStateNormal];
+            [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateNormal];
         }
         
         if ([stateImages objectForKey: ButtonNormalStateView])
@@ -1621,8 +1438,12 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Check for content gradient, if one is present apply to the label
         if ([highlighted objectForKey: ContentGradientParameterKey]) {
-            UIImage *image = [self patternGradientForGradientProperties: [highlighted objectForKey: ContentGradientParameterKey] 
-                                                                 height: button.titleLabel.frame.size.height];
+            NSString *title = [button titleForState: UIControlStateHighlighted];
+            if (!title) 
+                [button titleForState: UIControlStateHighlighted | UIControlStateSelected];
+            
+            UIImage *image = [self patternGradientForGradientProperties: [highlighted objectForKey: ContentGradientParameterKey]
+                                                                 height: [title sizeWithFont: button.titleLabel.font].height + 3.0];
             
             [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateHighlighted];
             [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateHighlighted | UIControlStateSelected];
@@ -1666,8 +1487,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Check for content gradient, if present apply to the title
         if ([disabled objectForKey: ContentGradientParameterKey]) {
+            NSString *title = [button titleForState: UIControlStateDisabled];
             UIImage *image = [self patternGradientForGradientProperties: [disabled objectForKey: ContentGradientParameterKey]
-                                                                 height: button.titleLabel.frame.size.height];
+                                                                 height: [title sizeWithFont: button.titleLabel.font].height + 3.0];
             
             [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateDisabled];
         }
@@ -1708,8 +1530,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Check for content gradient
         if ([selected objectForKey: ContentGradientParameterKey]) {
+            NSString *title = [button titleForState: UIControlStateSelected];
             UIImage *image = [self patternGradientForGradientProperties: [selected objectForKey: ContentGradientParameterKey]
-                                                                 height: button.titleLabel.frame.size.height];
+                                                                 height: [title sizeWithFont: button.titleLabel.font].height + 3.0];
             
             [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateSelected];
         }
@@ -1748,8 +1571,9 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
         
         // Check for content gradient
         if ([selected objectForKey: ContentGradientParameterKey]) {
+            NSString *title = [button titleForState: UIControlStateHighlighted | UIControlStateSelected];
             UIImage *image = [self patternGradientForGradientProperties: [selected objectForKey: ContentGradientParameterKey]
-                                                                 height: button.titleLabel.frame.size.height];
+                                                                 height: [title sizeWithFont: button.titleLabel.font].height + 3.0];
             
             [button setTitleColor: [UIColor colorWithPatternImage: image] forState: UIControlStateHighlighted | UIControlStateSelected];
         }
@@ -2252,14 +2076,6 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     return pointHolder;
 }
 
-#pragma mark - Cache
-
-- (void)flushCache {    
-    // Simply empty out the cache dictionaries
-    [_cache removeAllObjects];
-    [_JSONCache removeAllObjects];
-}
-
 @end
 
 #pragma mark - Implementation
@@ -2282,23 +2098,42 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     self = [super init];
     
     if (self) {
-        _isCached = YES;
-        _cache = [[NSMutableDictionary alloc] init];
-        _JSONCache = [[NSMutableDictionary alloc] init];
-        _imageCache = [[NSMutableDictionary alloc] init];
+#if kCachingEnabled
+        _cache = [[NSCache alloc] init];
+        [_cache setName: @"BlockCache"];
         
+        _JSONCache = [[NSCache alloc] init];
+        [_JSONCache setName: @"JSONCache"];
+        
+        _imageCache = [[NSCache alloc] init];
+        [_imageCache setName: @"ImageCache"];
+                
         // Observe notification about memory warning
         [[NSNotificationCenter defaultCenter] addObserver: self selector: @selector(flushCache) name: UIApplicationDidReceiveMemoryWarningNotification object: nil];
+#endif
     }
     
     return self;
 }
 
-- (UIView *)viewHierarchyForJSONAtPath:(NSString *)path bindings: (NSDictionary **)bindings {   
+#pragma mark - Cache
+
+- (void)flushCache {    
+    // Simply empty out the cache dictionaries
+    [_cache removeAllObjects];
+    [_JSONCache removeAllObjects];
+    [_imageCache removeAllObjects];
+}
+
+#pragma mark - Main work methods
+
+- (UIView *)viewHierarchyForJSONAtPath:(NSString *)path bindings: (NSDictionary **)bindings {  
+#if kCachingEnabled
     // Check the cache first for JSON
-    if (_isCached && [_JSONCache objectForKey: path]) {
+    if ([_JSONCache objectForKey: path]) {
         return [self viewHierarchyForJSONDictionary: [_JSONCache objectForKey: path] bindings: bindings];
     }
+#endif
     
     // Convert the JSON into a NSDictionary
     // If NSJSONSerialization is available, prefer that, if not, fall back to JSONKit
@@ -2318,10 +2153,10 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     }
     
     // Cache the JSON
-    if (_isCached) {
-        [_JSONCache setObject: JSONDictionary forKey: path];
-    }
-    
+#if kCachingEnabled
+    [_JSONCache setObject: JSONDictionary forKey: path];
+#endif
+        
     // And return a brand new view with the JSON
     // - this is to avoid returning a view that is already in use
     return [self viewHierarchyForJSONDictionary: JSONDictionary bindings: bindings];
@@ -2350,36 +2185,74 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 - (CGContextRef)newBitmapContextOfSize:(CGSize) size {
     CGContextRef    context = NULL;
     CGColorSpaceRef colorSpace;
-    void *          bitmapData;
-    int             bitmapByteCount;
     int             bitmapBytesPerRow;
     
-    bitmapBytesPerRow   = (size.width * 4);
-    bitmapByteCount     = (bitmapBytesPerRow * size.height);
-    
+    bitmapBytesPerRow   = (size.width * 4);    
     colorSpace = CGColorSpaceCreateDeviceRGB();
-    bitmapData = malloc( bitmapByteCount );
-    if (bitmapData == NULL) {
-        fprintf (stderr, "Memory not allocated!");
-        CGColorSpaceRelease(colorSpace);
-        return NULL;
-    }
-    context = CGBitmapContextCreate (bitmapData,
+        
+    context = CGBitmapContextCreate (NULL,
                                      size.width,
                                      size.height,
                                      8,      // bits per component
                                      bitmapBytesPerRow,
                                      colorSpace,
                                      kCGImageAlphaPremultipliedLast);
+    
     CGContextSetAllowsAntialiasing (context,NO);
+    
     if (context== NULL) {
-        free (bitmapData);
         CGColorSpaceRelease(colorSpace);
         fprintf (stderr, "Context not created!");
         return NULL;
     }
-    CGColorSpaceRelease( colorSpace );
+    
+    CGColorSpaceRelease(colorSpace);
     return context;
+}
+
+- (UIImage *)compressedImageForJSONAtPath: (NSString *)path {    
+#if kCachingEnabled
+    // Check the cache first for JSON
+    if ([_JSONCache objectForKey: path]) {
+        return [self compressedImageForDescription: [_JSONCache objectForKey: path]];
+    }
+#endif
+    
+    // Convert the JSON into a NSDictionary
+    // If NSJSONSerialization is available, prefer that, if not, fall back to JSONKit
+    // NSJSONSerialization has benefits, such as speed, but also future support in iOS
+    NSDictionary *JSONDictionary;
+    NSData *JSONData = [NSData dataWithContentsOfFile: path];
+    
+    if (NSClassFromString(@"NSJSONSerialization")) {
+        NSError *error = nil;
+        JSONDictionary = [NSJSONSerialization JSONObjectWithData: JSONData options: 0 error: &error];
+        
+        if (error) {
+            NSLog(@"NSJSONSerialization error while parsing JSON: %@", [error description]);
+        }
+    } else {
+        JSONDictionary = [[JSONDecoder decoder] objectWithData: JSONData];
+    }
+    
+    // Cache the JSON
+#if kCachingEnabled
+    [_JSONCache setObject: JSONDictionary forKey: path];
+    
+    // Check the cache for the image
+    if ([_imageCache objectForKey: JSONDictionary])
+        return [_imageCache objectForKey: JSONDictionary];
+#endif
+
+    // Not cached, render the view as an image
+    UIImage *image = [self compressedImageForView: [self viewHierarchyForJSONDictionary: JSONDictionary bindings: NULL]];
+    
+#if kCachingEnabled
+    // Cache the resulting image
+    [_imageCache setObject: image forKey: JSONDictionary];
+#endif
+    
+    return image;
 }
 
 - (UIImage *)compressedImageForView: (UIView *)view {
@@ -2400,18 +2273,7 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
     // so we must first apply the layer's geometry to the graphics context 
     // (i.e move the context to where the layer is)
     CGContextSaveGState(context);
-    
-    // Center the context around the view's anchor point
-    //CGContextTranslateCTM(context, [view center].x, [view center].y);
-    
-    // Apply the view's transform about the anchor point
-    //CGContextConcatCTM(context, [view transform]);
-    
-    // Offset by the portion of the bounds left of and above the anchor point
-    //CGContextTranslateCTM(context, 
-    //                      -[view bounds].size.width * [[view layer] anchorPoint].x,
-    //                      -[view bounds].size.height * [[view layer] anchorPoint].y);
-    
+        
     // Render the layer hierarchy to the current context
     [view.layer renderInContext:context];
     
@@ -2431,12 +2293,16 @@ CGMutablePathRef TKRoundedPathInRectForRadii(CGFloat *radii, CGRect rect) {
 }
 
 - (void)dealloc {
+#if kCachingEnabled
     // Remove observer for the memory warning
     [[NSNotificationCenter defaultCenter] removeObserver: self name: UIApplicationDidReceiveMemoryWarningNotification object: nil];
-    
+        
+    // Release the caches
     [_cache release];
     [_JSONCache release];
     [_imageCache release];
+#endif
+    
     [super dealloc];
 }
 

@@ -14,12 +14,27 @@
 + (TKView *)viewWithFrame: (CGRect)frame andDrawingBlock: (TKDrawingBlock)block {
     TKView *view = [[TKView alloc] initWithFrame: frame];
     view.drawBlock = block;
-    view.opaque = NO;
 
     return [view autorelease];
 }
 
 #pragma mark - Drawing
+
+- (id)initWithFrame:(CGRect)frame {
+    if ((self = [super initWithFrame: frame])) {
+        self.opaque = NO;
+    }
+    
+    return self;
+}
+
+- (void)setDrawBlock:(TKDrawingBlock)newDrawBlock {
+    Block_release(drawBlock);
+    drawBlock = Block_copy(newDrawBlock);
+    
+    // Redraw the view
+    [self setNeedsDisplay];
+}
 
 - (void)drawRect: (CGRect)rect {
     // Check if drawing block is present, if so, use it
@@ -31,7 +46,7 @@
 #pragma mark - Memory management
 
 - (void)dealloc {
-    [(id)drawBlock release];
+    Block_release(drawBlock);
     
     [super dealloc];
 }
