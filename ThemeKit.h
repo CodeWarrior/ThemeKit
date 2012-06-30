@@ -9,6 +9,8 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 
+#import "TKHelpers.h"
+#import "TKConstants.h"
 #import "JSONKit.h"
 
 #pragma mark - ThemeView Header

@@ -10,9 +10,6 @@
 #import "TKPathCommand.h"
 #import "TKView.h"
 
-#import "TKHelpers.h"
-#import "TKConstants.h"
-
 #pragma mark - Drawing Extension
 
 @interface ThemeKit (DrawingExtensions)
