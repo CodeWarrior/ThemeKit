@@ -1,0 +1,81 @@
+{
+	"title" : "Kviitung",
+	
+	"size" : {
+		"width" : 320,
+		"height" : 240
+	},
+    
+    "color" : "#417493",
+	
+	"subviews" : [
+		{
+			"type" : "path",
+			"bind-to" : "background",
+                  
+            "origin" : {
+                  "x" : 10,
+                  "y" : 10
+            },
+			
+			"description" : "M301,200l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5 l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5 l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5l-9.375,5l-9.375-5L1,14V5c0-2.209,2-4,4-4h292c2.209,0,4,2,4,4V14z",
+			
+			"color" : "#fdfdfe",
+			"drop-shadow" : {
+				"offset" : {
+					"x" : 0,
+					"y" : 2
+				},
+				
+				"color" : "#FFF"
+			},
+			
+			"outer-stroke" : {
+				"width" : 1,
+				"color" : "#b8c2c8"			
+			}
+		},
+                  
+          {
+              "type" : "label",
+              "content-string" : "Kviitung",
+                  
+              "origin" : {
+                  "x" : 20,
+                  "y" : 20
+              },
+                  
+              "font-weight" : "bold",
+                  
+              "content-color" : "#8e979d",
+              "drop-shadow" : {
+                  "offset" : {
+                      "x" : 0,
+                      "y" : 1
+                  },
+                  "color" : "#FFF"
+              },
+                  
+              "size" : {
+                  "width" : 280,
+                  "height" : 25
+              },
+              
+              "content-align" : "center"
+          },
+                  
+          {
+              "type" : "path",
+              "description" : "M25,50h270v1h-270v-1Z",
+              "color" : "#8e979d",
+              "alpha" : 0.6,
+              "drop-shadow" : {
+                  "offset" : {
+                      "x" : 0,
+                      "y" : 1
+                  },
+                  "color" : "#FFF"
+              }
+          }
+	]
+}

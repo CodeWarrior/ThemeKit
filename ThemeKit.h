@@ -11,7 +11,12 @@
 
 #import "TKHelpers.h"
 #import "TKConstants.h"
+
+// JSONKit, needed for < iOS 5, after that NSJSONSerialization is preferred
 #import "JSONKit.h"
+
+// Macro that will enable caching, set to 0 to disable caching
+#define kCachingEnabled 1
 
 #pragma mark - ThemeView Header
 

@@ -78,7 +78,12 @@
     
     // Create the container view
     UIView *view = [[[UIView alloc] initWithFrame: CGRectMake(origin.x, origin.y, size.width, size.height)] autorelease];
-    [view setBackgroundColor: [UIColor clearColor]];
+    
+    // Check if we have a background color for the container
+    if ([JSON objectForKey: ColorParameterKey])
+        view.backgroundColor = [UIColor colorForWebColor: [JSON objectForKey: ColorParameterKey]];
+    else
+        view.backgroundColor = [UIColor clearColor];
     
     if ([JSON objectForKey: SubviewSectionKey]) {
         // Grab the subviews
@@ -755,7 +760,7 @@
     
     // Keep note of any changes to the offset of drawing, this points to where, the main view should begin and how big it should be
     CGPoint origin = CGPointMake(0.0, 0.0);
-    
+
     // Calculate the needed size for the rect
     CGRect bounding = CGPathGetBoundingBox(mainPath);
     
@@ -786,6 +791,15 @@
     // Adjust the inner origin, this is where the actual view is located
     origin.x = bounding.origin.x - canvasRect.origin.x;
     origin.y = bounding.origin.y - canvasRect.origin.y;
+    
+    // And the outer origin, the one for the view itself
+    // Check if the view itself has origin set
+    CGPoint viewOrigin = canvasRect.origin;
+    if ([options objectForKey: OriginParameterKey])
+        viewOrigin = CGPointMake([[[options objectForKey: OriginParameterKey] objectForKey: XCoordinateParameterKey] floatValue],
+                                 [[[options objectForKey: OriginParameterKey] objectForKey: YCoordinateParameterKey] floatValue]);
+    
+    canvasRect.origin = viewOrigin;
     
 #if kCachingEnabled
     // Now as we have the frame, check cache for a view with same properties
@@ -2045,7 +2059,7 @@
         } else {
             // Error, unknown command
             NSLog(@"Syntax error, path drawing command \"%@\" does not exist", temp);
-            return nil;
+            return [NSArray array];
         }
     }
     
@@ -2054,7 +2068,7 @@
 
 - (CGPoint)pointFromScanner: (NSScanner *)scanner relativeToPoint: (CGPoint)currentPoint {
     // If not relative just pass in CGPointZero as the relativeToPoint, making it absolute
-    NSCharacterSet *numerical = [NSCharacterSet characterSetWithCharactersInString: @"+-0123456789"];
+    NSCharacterSet *numerical = [NSCharacterSet characterSetWithCharactersInString: @"+-0123456789."];
     
     // Scan in the numbers, ignoring anything in the middle
     CGPoint pointHolder = CGPointZero;
@@ -2144,6 +2158,7 @@
         
         if (error) {
             NSLog(@"NSJSONSerialization error while parsing JSON: %@", [error description]);
+            return nil;
         }
     } else {
         JSONDictionary = [[JSONDecoder decoder] objectWithData: JSONData];
@@ -2171,6 +2186,7 @@
         
         if (error) {
             NSLog(@"NSJSONSerialization error while parsing JSON: %@", [error description]);
+            return nil;
         }
     } else {
         JSONDictionary = [[JSONDecoder decoder] objectWithData: JSONData];
@@ -2227,6 +2243,7 @@
         
         if (error) {
             NSLog(@"NSJSONSerialization error while parsing JSON: %@", [error description]);
+            return nil;
         }
     } else {
         JSONDictionary = [[JSONDecoder decoder] objectWithData: JSONData];

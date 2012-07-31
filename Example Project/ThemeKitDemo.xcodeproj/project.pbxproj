@@ -1,0 +1,357 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8E961F9315A07EB60075E142 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E961F9215A07EB60075E142 /* UIKit.framework */; };
+		8E961F9515A07EB60075E142 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E961F9415A07EB60075E142 /* Foundation.framework */; };
+		8E961F9715A07EB60075E142 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E961F9615A07EB60075E142 /* CoreGraphics.framework */; };
+		8E961F9D15A07EB60075E142 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8E961F9B15A07EB60075E142 /* InfoPlist.strings */; };
+		8E961F9F15A07EB60075E142 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E961F9E15A07EB60075E142 /* main.m */; };
+		8E961FA315A07EB60075E142 /* TKDAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E961FA215A07EB60075E142 /* TKDAppDelegate.m */; };
+		8E961FA615A07EB70075E142 /* TKDMasterViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E961FA515A07EB70075E142 /* TKDMasterViewController.m */; };
+		8E961FA915A07EB70075E142 /* TKDDetailViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E961FA815A07EB70075E142 /* TKDDetailViewController.m */; };
+		8E961FAC15A07EB70075E142 /* TKDMasterViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8E961FAA15A07EB70075E142 /* TKDMasterViewController.xib */; };
+		8E961FAF15A07EB70075E142 /* TKDDetailViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 8E961FAD15A07EB70075E142 /* TKDDetailViewController.xib */; };
+		8E961FC915A081DE0075E142 /* checkerboard.json in Resources */ = {isa = PBXBuildFile; fileRef = 8E961FC815A081DE0075E142 /* checkerboard.json */; };
+		8E961FD415A086FB0075E142 /* Examples in Resources */ = {isa = PBXBuildFile; fileRef = 8E961FD315A086FB0075E142 /* Examples */; };
+		8E96200815A17C8C0075E142 /* JSONKit.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E96200615A17C8C0075E142 /* JSONKit.m */; };
+		8E96200915A17C940075E142 /* ThemeKit.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E961FFD15A17C6D0075E142 /* ThemeKit.m */; };
+		8E96200A15A17C940075E142 /* TKHelpers.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E96200015A17C6D0075E142 /* TKHelpers.m */; };
+		8E96200B15A17C940075E142 /* TKPathCommand.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E96200215A17C6D0075E142 /* TKPathCommand.m */; };
+		8E96200C15A17C940075E142 /* TKView.m in Sources */ = {isa = PBXBuildFile; fileRef = 8E96200415A17C6D0075E142 /* TKView.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		8E961F8E15A07EB60075E142 /* ThemeKitDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ThemeKitDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E961F9215A07EB60075E142 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		8E961F9415A07EB60075E142 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		8E961F9615A07EB60075E142 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		8E961F9A15A07EB60075E142 /* ThemeKitDemo-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "ThemeKitDemo-Info.plist"; sourceTree = "<group>"; };
+		8E961F9C15A07EB60075E142 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		8E961F9E15A07EB60075E142 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		8E961FA015A07EB60075E142 /* ThemeKitDemo-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ThemeKitDemo-Prefix.pch"; sourceTree = "<group>"; };
+		8E961FA115A07EB60075E142 /* TKDAppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TKDAppDelegate.h; sourceTree = "<group>"; };
+		8E961FA215A07EB60075E142 /* TKDAppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TKDAppDelegate.m; sourceTree = "<group>"; };
+		8E961FA415A07EB70075E142 /* TKDMasterViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TKDMasterViewController.h; sourceTree = "<group>"; };
+		8E961FA515A07EB70075E142 /* TKDMasterViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TKDMasterViewController.m; sourceTree = "<group>"; };
+		8E961FA715A07EB70075E142 /* TKDDetailViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TKDDetailViewController.h; sourceTree = "<group>"; };
+		8E961FA815A07EB70075E142 /* TKDDetailViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TKDDetailViewController.m; sourceTree = "<group>"; };
+		8E961FAB15A07EB70075E142 /* en */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = en; path = en.lproj/TKDMasterViewController.xib; sourceTree = "<group>"; };
+		8E961FAE15A07EB70075E142 /* en */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = en; path = en.lproj/TKDDetailViewController.xib; sourceTree = "<group>"; };
+		8E961FC815A081DE0075E142 /* checkerboard.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = checkerboard.json; sourceTree = "<group>"; };
+		8E961FD315A086FB0075E142 /* Examples */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Examples; sourceTree = "<group>"; };
+		8E961FFC15A17C6D0075E142 /* ThemeKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ThemeKit.h; path = ../../ThemeKit/ThemeKit.h; sourceTree = "<group>"; };
+		8E961FFD15A17C6D0075E142 /* ThemeKit.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ThemeKit.m; path = ../../ThemeKit/ThemeKit.m; sourceTree = "<group>"; };
+		8E961FFE15A17C6D0075E142 /* TKConstants.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKConstants.h; path = ../../ThemeKit/TKConstants.h; sourceTree = "<group>"; };
+		8E961FFF15A17C6D0075E142 /* TKHelpers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKHelpers.h; path = ../../ThemeKit/TKHelpers.h; sourceTree = "<group>"; };
+		8E96200015A17C6D0075E142 /* TKHelpers.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKHelpers.m; path = ../../ThemeKit/TKHelpers.m; sourceTree = "<group>"; };
+		8E96200115A17C6D0075E142 /* TKPathCommand.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKPathCommand.h; path = ../../ThemeKit/TKPathCommand.h; sourceTree = "<group>"; };
+		8E96200215A17C6D0075E142 /* TKPathCommand.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKPathCommand.m; path = ../../ThemeKit/TKPathCommand.m; sourceTree = "<group>"; };
+		8E96200315A17C6D0075E142 /* TKView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKView.h; path = ../../ThemeKit/TKView.h; sourceTree = "<group>"; };
+		8E96200415A17C6D0075E142 /* TKView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKView.m; path = ../../ThemeKit/TKView.m; sourceTree = "<group>"; };
+		8E96200615A17C8C0075E142 /* JSONKit.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JSONKit.m; sourceTree = "<group>"; };
+		8E96200715A17C8C0075E142 /* JSONKit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSONKit.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8E961F8B15A07EB60075E142 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E961F9315A07EB60075E142 /* UIKit.framework in Frameworks */,
+				8E961F9515A07EB60075E142 /* Foundation.framework in Frameworks */,
+				8E961F9715A07EB60075E142 /* CoreGraphics.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8E961F8315A07EB60075E142 = {
+			isa = PBXGroup;
+			children = (
+				8E961F9815A07EB60075E142 /* ThemeKitDemo */,
+				8E961F9115A07EB60075E142 /* Frameworks */,
+				8E961F8F15A07EB60075E142 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8E961F8F15A07EB60075E142 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8E961F8E15A07EB60075E142 /* ThemeKitDemo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8E961F9115A07EB60075E142 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8E961F9215A07EB60075E142 /* UIKit.framework */,
+				8E961F9415A07EB60075E142 /* Foundation.framework */,
+				8E961F9615A07EB60075E142 /* CoreGraphics.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		8E961F9815A07EB60075E142 /* ThemeKitDemo */ = {
+			isa = PBXGroup;
+			children = (
+				8E961FA115A07EB60075E142 /* TKDAppDelegate.h */,
+				8E961FA215A07EB60075E142 /* TKDAppDelegate.m */,
+				8E961FA415A07EB70075E142 /* TKDMasterViewController.h */,
+				8E961FA515A07EB70075E142 /* TKDMasterViewController.m */,
+				8E961FA715A07EB70075E142 /* TKDDetailViewController.h */,
+				8E961FA815A07EB70075E142 /* TKDDetailViewController.m */,
+				8E961FAA15A07EB70075E142 /* TKDMasterViewController.xib */,
+				8E961FAD15A07EB70075E142 /* TKDDetailViewController.xib */,
+				8E961FC615A081C60075E142 /* JSON */,
+				8E961FB515A07EC00075E142 /* ThemeKit */,
+				8E961F9915A07EB60075E142 /* Supporting Files */,
+			);
+			path = ThemeKitDemo;
+			sourceTree = "<group>";
+		};
+		8E961F9915A07EB60075E142 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				8E961F9A15A07EB60075E142 /* ThemeKitDemo-Info.plist */,
+				8E961F9B15A07EB60075E142 /* InfoPlist.strings */,
+				8E961F9E15A07EB60075E142 /* main.m */,
+				8E961FA015A07EB60075E142 /* ThemeKitDemo-Prefix.pch */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		8E961FB515A07EC00075E142 /* ThemeKit */ = {
+			isa = PBXGroup;
+			children = (
+				8E961FFC15A17C6D0075E142 /* ThemeKit.h */,
+				8E961FFD15A17C6D0075E142 /* ThemeKit.m */,
+				8E961FFE15A17C6D0075E142 /* TKConstants.h */,
+				8E961FFF15A17C6D0075E142 /* TKHelpers.h */,
+				8E96200015A17C6D0075E142 /* TKHelpers.m */,
+				8E96200115A17C6D0075E142 /* TKPathCommand.h */,
+				8E96200215A17C6D0075E142 /* TKPathCommand.m */,
+				8E96200315A17C6D0075E142 /* TKView.h */,
+				8E96200415A17C6D0075E142 /* TKView.m */,
+				8E96200615A17C8C0075E142 /* JSONKit.m */,
+				8E96200715A17C8C0075E142 /* JSONKit.h */,
+			);
+			name = ThemeKit;
+			sourceTree = "<group>";
+		};
+		8E961FC615A081C60075E142 /* JSON */ = {
+			isa = PBXGroup;
+			children = (
+				8E961FC815A081DE0075E142 /* checkerboard.json */,
+				8E961FD315A086FB0075E142 /* Examples */,
+			);
+			name = JSON;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8E961F8D15A07EB60075E142 /* ThemeKitDemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8E961FB215A07EB70075E142 /* Build configuration list for PBXNativeTarget "ThemeKitDemo" */;
+			buildPhases = (
+				8E961F8A15A07EB60075E142 /* Sources */,
+				8E961F8B15A07EB60075E142 /* Frameworks */,
+				8E961F8C15A07EB60075E142 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ThemeKitDemo;
+			productName = ThemeKitDemo;
+			productReference = 8E961F8E15A07EB60075E142 /* ThemeKitDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8E961F8515A07EB60075E142 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				CLASSPREFIX = TKD;
+				LastUpgradeCheck = 0430;
+			};
+			buildConfigurationList = 8E961F8815A07EB60075E142 /* Build configuration list for PBXProject "ThemeKitDemo" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 8E961F8315A07EB60075E142;
+			productRefGroup = 8E961F8F15A07EB60075E142 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8E961F8D15A07EB60075E142 /* ThemeKitDemo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8E961F8C15A07EB60075E142 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E961F9D15A07EB60075E142 /* InfoPlist.strings in Resources */,
+				8E961FAC15A07EB70075E142 /* TKDMasterViewController.xib in Resources */,
+				8E961FAF15A07EB70075E142 /* TKDDetailViewController.xib in Resources */,
+				8E961FC915A081DE0075E142 /* checkerboard.json in Resources */,
+				8E961FD415A086FB0075E142 /* Examples in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8E961F8A15A07EB60075E142 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E961F9F15A07EB60075E142 /* main.m in Sources */,
+				8E961FA315A07EB60075E142 /* TKDAppDelegate.m in Sources */,
+				8E961FA615A07EB70075E142 /* TKDMasterViewController.m in Sources */,
+				8E961FA915A07EB70075E142 /* TKDDetailViewController.m in Sources */,
+				8E96200815A17C8C0075E142 /* JSONKit.m in Sources */,
+				8E96200915A17C940075E142 /* ThemeKit.m in Sources */,
+				8E96200A15A17C940075E142 /* TKHelpers.m in Sources */,
+				8E96200B15A17C940075E142 /* TKPathCommand.m in Sources */,
+				8E96200C15A17C940075E142 /* TKView.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		8E961F9B15A07EB60075E142 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				8E961F9C15A07EB60075E142 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		8E961FAA15A07EB70075E142 /* TKDMasterViewController.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				8E961FAB15A07EB70075E142 /* en */,
+			);
+			name = TKDMasterViewController.xib;
+			sourceTree = "<group>";
+		};
+		8E961FAD15A07EB70075E142 /* TKDDetailViewController.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				8E961FAE15A07EB70075E142 /* en */,
+			);
+			name = TKDDetailViewController.xib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		8E961FB015A07EB70075E142 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 5.1;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		8E961FB115A07EB70075E142 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 5.1;
+				OTHER_CFLAGS = "-DNS_BLOCK_ASSERTIONS=1";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 2;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8E961FB315A07EB70075E142 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "ThemeKitDemo/ThemeKitDemo-Prefix.pch";
+				INFOPLIST_FILE = "ThemeKitDemo/ThemeKitDemo-Info.plist";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Debug;
+		};
+		8E961FB415A07EB70075E142 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "ThemeKitDemo/ThemeKitDemo-Prefix.pch";
+				INFOPLIST_FILE = "ThemeKitDemo/ThemeKitDemo-Info.plist";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8E961F8815A07EB60075E142 /* Build configuration list for PBXProject "ThemeKitDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8E961FB015A07EB70075E142 /* Debug */,
+				8E961FB115A07EB70075E142 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8E961FB215A07EB70075E142 /* Build configuration list for PBXNativeTarget "ThemeKitDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8E961FB315A07EB70075E142 /* Debug */,
+				8E961FB415A07EB70075E142 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8E961F8515A07EB60075E142 /* Project object */;
+}

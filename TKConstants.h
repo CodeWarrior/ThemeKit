@@ -83,6 +83,3 @@ static NSString *const YCoordinateParameterKey = @"y";
 
 // Rounded corners
 static NSString *const CornerRadiusParameterKey = @"corner-radius";     // Can be either a fixed value or an array of 1-4 values
-
-// Macro that will enable caching, set to 0 to disable caching
-#define kCachingEnabled 1

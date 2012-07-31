@@ -1,0 +1,898 @@
+{
+    "title": "Complex",
+    "size": {
+        "width": 320,
+        "height": 480
+    },
+    "subviews": [
+        {
+            "type": "rectangle",
+            "size": {
+                "width": 320,
+                "height": 480
+            },
+            "gradient-fill": {
+                "gradient-colors": [
+                    "#28292d",
+                    "#3b3d41"
+                ],
+                "gradient-positions": [
+                    0,
+                    0.17
+                ]
+            },
+            "subviews": [
+                {
+                    "type": "label",
+                    "size": {
+                        "width": 300,
+                        "height": 50
+                    },
+                    "origin": {
+                        "x": 10,
+                        "y": 23
+                    },
+                    "content-align": "center",
+                    "content-string": "Oled parklas",
+                    "bind-to": "statusLabel",
+                    "font-size": 18,
+                    "font-weight": "bold",
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 1
+                        },
+                        "color": "#000",
+                        "alpha": 0.45
+                    },
+                    "gradient-fill": {
+                        "gradient-colors": [
+                            "#FFF",
+                            "#d8d8d9"
+                        ],
+                        "gradient-positions": [
+                            0,
+                            1
+                        ]
+                    }
+                },
+                {
+                    "type": "path",
+                    "description": "M 0 20.5 L 320 20.5",
+                    "outer-stroke": {
+                        "width": 1,
+                        "color": "#FFF",
+                        "alpha": 0.1,
+                        "blend-mode": "overlay"
+                    }
+                },
+                {
+                    "type": "path",
+                    "description": "M 0 70 L 145 70 l 15 10 15 -10 L 320 70 320 480 0 480 Z",
+                    "color": "#c2c7cd",
+                    "inner-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 1
+                        },
+                        "alpha": 0.3,
+                        "color": "#FFF"
+                    },
+                    "bind-to": "positioningGlow",
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 0
+                        },
+                        "blur": 16,
+                        "alpha": 0.45,
+                        "color": "#0094E1"
+                    },
+                    "gradient-fill": {
+                        "gradient-colors": [
+                            "#191f2a",
+                            "#FFF"
+                        ],
+                        "gradient-positions": [
+                            1,
+                            0
+                        ],
+                        "blend-mode": "overlay",
+                        "alpha": 0.4
+                    }
+                },
+                {
+                    "type": "path",
+                    "description": "M 0 70 L 145 70 l 15 10 15 -10 L 320 70 320 480 0 480 Z",
+                    "color": "#c2c7cd",
+                    "inner-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 1
+                        },
+                        "alpha": 0.3,
+                        "color": "#FFF"
+                    },
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": -2
+                        },
+                        "blur": 6,
+                        "alpha": 0.25
+                    },
+                    "gradient-fill": {
+                        "gradient-colors": [
+                            "#191f2a",
+                            "#FFF"
+                        ],
+                        "gradient-positions": [
+                            1,
+                            0
+                        ],
+                        "blend-mode": "overlay",
+                        "alpha": 0.4
+                    },
+                    "subviews": [
+                        {
+                            "type": "button",
+                            "size": {
+                                "width": 166,
+                                "height": 69
+                            },
+                            "origin": {
+                                "x": 83,
+                                "y": 310
+                            },
+                            "bind-to": "parkBTN",
+                            "content-shadow": {
+                                "offset": {
+                                    "x": 0,
+                                    "y": 1
+                                },
+                                "alpha": 0.35
+                            },
+                            "font-size": 30,
+                            "font-weight": "bold",
+                            "normal-state": {
+                                "stretchable-edges": [
+                                    4,
+                                    0
+                                ],
+                                "content-shadow": {
+                                    "color": "#000",
+                                    "alpha": 0.35
+                                },
+                                "content-string": "Pargi",
+                                "content-gradient-fill": {
+                                    "gradient-colors": [
+                                        "#304261",
+                                        "#FFF"
+                                    ],
+                                    "gradient-positions": [
+                                        1,
+                                        0
+                                    ],
+                                    "alpha": 0.35
+                                },
+                                "content-color": "#FFF",
+                                "type": "rectangle",
+                                "size": {
+                                    "width": 9,
+                                    "height": 69
+                                },
+                                "corner-radius": 3,
+                                "color": "#c5cbd1",
+                                "gradient-fill": {
+                                    "gradient-colors": [
+                                        "#2f3b52",
+                                        "#334c79"
+                                    ],
+                                    "gradient-positions": [
+                                        1,
+                                        0
+                                    ]
+                                },
+                                "outer-stroke": {
+                                    "color": "#1f2530",
+                                    "width": 1
+                                },
+                                "inner-stroke": {
+                                    "color": "#FFF",
+                                    "width": 1,
+                                    "blend-mode": "overlay",
+                                    "alpha": 0.3
+                                },
+                                "drop-shadow": {
+                                    "offset": {
+                                        "x": 0,
+                                        "y": 2
+                                    },
+                                    "blur": 0,
+                                    "color": "#000",
+                                    "alpha": 0.2
+                                }
+                            },
+                            "highlighted-state": {
+                                "stretchable-edges": [
+                                    4,
+                                    0
+                                ],
+                                "type": "rectangle",
+                                "size": {
+                                    "width": 9,
+                                    "height": 69
+                                },
+                                "corner-radius": 3,
+                                "color": "#007bbb",
+                                "content-color": "#FFF",
+                                "content-shadow": {
+                                    "color": "#000000",
+                                    "alpha": 0.35
+                                },
+                                "gradient-fill": {
+                                    "gradient-colors": [
+                                        "#0085ca",
+                                        "#00a2f6"
+                                    ],
+                                    "gradient-positions": [
+                                        1,
+                                        0
+                                    ]
+                                },
+                                "outer-stroke": {
+                                    "color": "#05689b",
+                                    "width": 1
+                                },
+                                "inner-stroke": {
+                                    "color": "#FFF",
+                                    "width": 1,
+                                    "blend-mode": "overlay",
+                                    "alpha": 0.3
+                                },
+                                "drop-shadow": {
+                                    "offset": {
+                                        "x": 0,
+                                        "y": 2
+                                    },
+                                    "blur": 0,
+                                    "alpha": 0.3,
+                                    "color": "#FFF"
+                                }
+                            },
+                            "selected-state": {
+                                "content-string": "Sõida",
+                                "stretchable-edges": [
+                                    4,
+                                    0
+                                ],
+                                "content-shadow": {
+                                    "color": "#000",
+                                    "alpha": 0.35
+                                },
+                                "content-gradient-fill": {
+                                    "gradient-colors": [
+                                        "#d03333",
+                                        "#FFF"
+                                    ],
+                                    "gradient-positions": [
+                                        1,
+                                        0
+                                    ],
+                                    "alpha": 0.25
+                                },
+                                "content-color": "#FFF",
+                                "type": "rectangle",
+                                "size": {
+                                    "width": 9,
+                                    "height": 69
+                                },
+                                "corner-radius": 3,
+                                "color": "#c5cbd1",
+                                "gradient-fill": {
+                                    "gradient-colors": [
+                                        "#911313",
+                                        "#c72525"
+                                    ],
+                                    "gradient-positions": [
+                                        1,
+                                        0
+                                    ]
+                                },
+                                "outer-stroke": {
+                                    "color": "#4a0f0f",
+                                    "width": 1
+                                },
+                                "inner-stroke": {
+                                    "color": "#FFF",
+                                    "width": 1,
+                                    "blend-mode": "overlay",
+                                    "alpha": 0.3
+                                },
+                                "drop-shadow": {
+                                    "offset": {
+                                        "x": 0,
+                                        "y": 2
+                                    },
+                                    "blur": 0,
+                                    "color": "#000",
+                                    "alpha": 0.2
+                                }
+                            },
+                            "highlighted-selected-state": {
+                                "content-string": "Sõida",
+                                "stretchable-edges": [
+                                    4,
+                                    0
+                                ],
+                                "content-shadow": {
+                                    "color": "#000",
+                                    "alpha": 0.35
+                                },
+                                "content-gradient-fill": {
+                                    "gradient-colors": [
+                                        "#d03333",
+                                        "#FFF"
+                                    ],
+                                    "gradient-positions": [
+                                        1,
+                                        0
+                                    ],
+                                    "alpha": 0.25
+                                },
+                                "content-color": "#FFF",
+                                "type": "rectangle",
+                                "size": {
+                                    "width": 9,
+                                    "height": 69
+                                },
+                                "corner-radius": 3,
+                                "color": "#c5cbd1",
+                                "gradient-fill": {
+                                    "gradient-colors": [
+                                        "#c42323",
+                                        "#f22222"
+                                    ],
+                                    "gradient-positions": [
+                                        0,
+                                        1
+                                    ]
+                                },
+                                "outer-stroke": {
+                                    "color": "#8c0d0d",
+                                    "width": 1
+                                },
+                                "inner-stroke": {
+                                    "color": "#FFF",
+                                    "width": 1,
+                                    "blend-mode": "overlay",
+                                    "alpha": 0.3
+                                },
+                                "drop-shadow": {
+                                    "offset": {
+                                        "x": 0,
+                                        "y": 2
+                                    },
+                                    "blur": 0,
+                                    "color": "#FFF",
+                                    "alpha": 0.3
+                                }
+                            }
+                        },
+                        {
+                            "type": "rectangle",
+                            "size": {
+                                "width": 640,
+                                "height": 60
+                            },
+                            "origin": {
+                                "x": 6,
+                                "y": 217
+                            },
+                            "bind-to": "recentCars",
+                            "is-container": true,
+                            "subviews": [
+                                {
+                                    "type": "button",
+                                    "size": {
+                                        "width": 48,
+                                        "height": 40
+                                    },
+                                    "origin": {
+                                        "x": 231,
+                                        "y": 12
+                                    },
+                                    "bind-to": "additionalCars",
+                                    "normal-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "content-shadow": {
+                                            "color": "#FFF",
+                                            "alpha": 0.4
+                                        },
+                                        "content-color": "#494f59",
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#c5cbd1",
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#aeb9c6",
+                                                "#c9d1db"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#8993a3",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.1
+                                        },
+                                        "content-image": {
+                                            "type": "path",
+                                            "description": "M 0 6 l 0 4 6 0 0 6 4 0 0 -6 6 0 0 -4 -6 0 0 -6 -4 0 0 6 Z",
+                                            "color": "#494f59",
+                                            "drop-shadow": {
+                                                "offset": {
+                                                    "x": 0,
+                                                    "y": 0.5
+                                                },
+                                                "blur": 0.5,
+                                                "color": "#FFF"
+                                            },
+                                            "inner-shadow": {
+                                                "offset": {
+                                                    "x": 0,
+                                                    "y": 0.5
+                                                },
+                                                "color": "#000",
+                                                "alpha": 0.36
+                                            }
+                                        }
+                                    },
+                                    "highlighted-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#007bbb",
+                                        "content-color": "#FFF",
+                                        "content-shadow": {
+                                            "color": "#000000",
+                                            "alpha": 0.35
+                                        },
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#0085ca",
+                                                "#00a2f6"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#05689b",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.3,
+                                            "color": "#FFF"
+                                        },
+                                        "content-image": {
+                                            "type": "path",
+                                            "description": "M 0 6 l 0 4 6 0 0 6 4 0 0 -6 6 0 0 -4 -6 0 0 -6 -4 0 0 6 Z",
+                                            "color": "#FFF",
+                                            "drop-shadow": {
+                                                "offset": {
+                                                    "x": 0,
+                                                    "y": 1
+                                                },
+                                                "blur": 0,
+                                                "alpha": 0.35
+                                            }
+                                        }
+                                    },
+                                    "disabled-state": {
+                                        "content-color": "#9399a0"
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "size": {
+                                        "width": 86,
+                                        "height": 40
+                                    },
+                                    "origin": {
+                                        "x": 344,
+                                        "y": 12
+                                    },
+                                    "bind-to": "recentOne",
+                                    "content-string": "123ABC",
+                                    "content-shadow": {
+                                        "offset": {
+                                            "x": 0,
+                                            "y": 1
+                                        },
+                                        "color": "#FFF"
+                                    },
+                                    "font-size": 12,
+                                    "font-weight": "bold",
+                                    "normal-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "content-shadow": {
+                                            "color": "#FFF",
+                                            "alpha": 0.4
+                                        },
+                                        "content-color": "#494f59",
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#c5cbd1",
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#aeb9c6",
+                                                "#c9d1db"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#8993a3",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.1
+                                        }
+                                    },
+                                    "highlighted-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#007bbb",
+                                        "content-color": "#FFF",
+                                        "content-shadow": {
+                                            "color": "#000000",
+                                            "alpha": 0.35
+                                        },
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#0085ca",
+                                                "#00a2f6"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#05689b",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.3,
+                                            "color": "#FFF"
+                                        }
+                                    },
+                                    "disabled-state": {
+                                        "content-color": "#9399a0"
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "size": {
+                                        "width": 86,
+                                        "height": 40
+                                    },
+                                    "origin": {
+                                        "x": 445,
+                                        "y": 12
+                                    },
+                                    "bind-to": "recentTwo",
+                                    "content-string": "123ABC",
+                                    "content-shadow": {
+                                        "offset": {
+                                            "x": 0,
+                                            "y": 1
+                                        },
+                                        "color": "#FFF"
+                                    },
+                                    "font-size": 12,
+                                    "font-weight": "bold",
+                                    "normal-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "content-shadow": {
+                                            "color": "#FFF",
+                                            "alpha": 0.4
+                                        },
+                                        "content-color": "#494f59",
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#c5cbd1",
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#aeb9c6",
+                                                "#c9d1db"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#8993a3",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.1
+                                        }
+                                    },
+                                    "highlighted-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#007bbb",
+                                        "content-color": "#FFF",
+                                        "content-shadow": {
+                                            "color": "#000000",
+                                            "alpha": 0.35
+                                        },
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#0085ca",
+                                                "#00a2f6"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#05689b",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.3,
+                                            "color": "#FFF"
+                                        }
+                                    },
+                                    "disabled-state": {
+                                        "content-color": "#9399a0"
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "size": {
+                                        "width": 86,
+                                        "height": 40
+                                    },
+                                    "origin": {
+                                        "x": 546,
+                                        "y": 12
+                                    },
+                                    "bind-to": "recentThree",
+                                    "content-string": "123ABC",
+                                    "content-shadow": {
+                                        "offset": {
+                                            "x": 0,
+                                            "y": 1
+                                        },
+                                        "color": "#FFF"
+                                    },
+                                    "font-size": 12,
+                                    "font-weight": "bold",
+                                    "normal-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "content-shadow": {
+                                            "color": "#FFF",
+                                            "alpha": 0.4
+                                        },
+                                        "content-color": "#494f59",
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#c5cbd1",
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#aeb9c6",
+                                                "#c9d1db"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#8993a3",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.1
+                                        }
+                                    },
+                                    "highlighted-state": {
+                                        "stretchable-edges": [
+                                            4,
+                                            0
+                                        ],
+                                        "type": "rectangle",
+                                        "size": {
+                                            "width": 9,
+                                            "height": 40
+                                        },
+                                        "corner-radius": 3,
+                                        "color": "#007bbb",
+                                        "content-color": "#FFF",
+                                        "content-shadow": {
+                                            "color": "#000000",
+                                            "alpha": 0.35
+                                        },
+                                        "gradient-fill": {
+                                            "gradient-colors": [
+                                                "#0085ca",
+                                                "#00a2f6"
+                                            ],
+                                            "gradient-positions": [
+                                                1,
+                                                0
+                                            ]
+                                        },
+                                        "outer-stroke": {
+                                            "color": "#05689b",
+                                            "width": 1
+                                        },
+                                        "inner-stroke": {
+                                            "color": "#FFF",
+                                            "width": 1,
+                                            "blend-mode": "overlay",
+                                            "alpha": 0.3
+                                        },
+                                        "drop-shadow": {
+                                            "offset": {
+                                                "x": 0,
+                                                "y": 2
+                                            },
+                                            "blur": 0,
+                                            "alpha": 0.3,
+                                            "color": "#FFF"
+                                        }
+                                    },
+                                    "disabled-state": {
+                                        "content-color": "#9399a0"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

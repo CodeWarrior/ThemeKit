@@ -1,0 +1,70 @@
+{
+	"title" : "Checkerboard",
+    
+	"size" : {
+		"width"	: 16,
+		"height" : 16
+	},
+    
+    "origin" : {
+        "x" : 0,
+        "y" : 0
+    },
+        
+	"subviews" : [{
+                      "type" : "rectangle",
+                      "origin" : {
+                            "x" : 0,
+                            "y" : 0
+                      },
+                      
+                      "size" : {
+                            "height" : 8,
+                            "width" : 8
+                      },
+                      
+                      "color" : "#cccccc"
+                  },
+                  {
+                      "type" : "rectangle",
+                      "origin" : {
+                          "x" : 8,
+                          "y" : 0
+                      },
+                      
+                      "size" : {
+                          "height" : 8,
+                          "width" : 8
+                      },
+                      
+                      "color" : "#FFF"
+                  },
+                  {
+                      "type" : "rectangle",
+                      "origin" : {
+                          "x" : 0,
+                          "y" : 8
+                      },
+                      
+                      "size" : {
+                          "height" : 8,
+                          "width" : 8
+                      },
+                      
+                      "color" : "#FFF"
+                  },
+                  {
+                      "type" : "rectangle",
+                      "origin" : {
+                          "x" : 8,
+                          "y" : 8
+                      },
+                      
+                      "size" : {
+                          "height" : 8,
+                          "width" : 8
+                      },
+                      
+                      "color" : "#cccccc"
+                  }]
+}

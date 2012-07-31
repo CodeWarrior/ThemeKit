@@ -1,0 +1,354 @@
+{
+    "title": "Nupp",
+    
+    "size": {
+        "width": 122,
+        "height": 39
+    },
+    
+    "origin": {
+        "x": 0,
+        "y": 0
+    },
+    
+    "subviews": [
+        {
+            "type": "button",
+            "size": {
+                "width": 122,
+                "height": 39
+            },
+            "origin": {
+                "x": 0,
+                "y": 0
+            },
+            "content-string": "Positsioneeri",
+            "content-shadow": {
+                "offset": {
+                    "x": 0,
+                    "y": 1
+                },
+                "color": "#FFF"
+            },
+            "content-image-insets": [
+                0,
+                0,
+                0,
+                9
+            ],
+            "content-insets": [
+                0,
+                4,
+                0,
+                0
+            ],
+            "font-size": 12,
+            "font-weight": "bold",
+            "bind-to": "positionBTN",
+            "normal-state": {
+                "stretchable-edges": [
+                    4,
+                    0
+                ],
+                "content-shadow": {
+                    "color": "#FFF",
+                    "alpha": 0.4
+                },
+                "content-color": "#494f59",
+                "type": "rectangle",
+                "size": {
+                    "width": 9,
+                    "height": 40
+                },
+                "corner-radius": 3,
+                "color": "#c5cbd1",
+                "gradient-fill": {
+                    "gradient-colors": [
+                        "#aeb9c6",
+                        "#c9d1db"
+                    ],
+                    "gradient-positions": [
+                        1,
+                        0
+                    ]
+                },
+                "outer-stroke": {
+                    "color": "#8993a3",
+                    "width": 1
+                },
+                "inner-stroke": {
+                    "color": "#FFF",
+                    "width": 1,
+                    "blend-mode": "overlay",
+                    "alpha": 0.3
+                },
+                "drop-shadow": {
+                    "offset": {
+                        "x": 0,
+                        "y": 2
+                    },
+                    "blur": 0,
+                    "alpha": 0.1
+                },
+                "content-image": {
+                    "type": "path",
+                    "description": "M 0 6 L 6 6 6 12 12 0 0 6 Z",
+                    "color": "#FFF",
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 0.5
+                        },
+                        "blur": 0.5,
+                        "color": "#FFF"
+                    },
+                    "inner-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 0.5
+                        },
+                        "color": "#000",
+                        "alpha": 0.36
+                    },
+                    "gradient-fill": {
+                        "gradient-colors": [
+                            "#ba91c2",
+                            "#a164a9",
+                            "#71499d"
+                        ],
+                        "gradient-positions": [
+                            0.95,
+                            0.78,
+                            1
+                        ]
+                    }
+                }
+            },
+            "highlighted-state": {
+                "stretchable-edges": [
+                    4,
+                    0
+                ],
+                "type": "rectangle",
+                "size": {
+                    "width": 9,
+                    "height": 40
+                },
+                "corner-radius": 3,
+                "color": "#007bbb",
+                "content-color": "#FFF",
+                "content-shadow": {
+                    "color": "#000000",
+                    "alpha": 0.35
+                },
+                "gradient-fill": {
+                    "gradient-colors": [
+                        "#0085ca",
+                        "#00a2f6"
+                    ],
+                    "gradient-positions": [
+                        1,
+                        0
+                    ]
+                },
+                "outer-stroke": {
+                    "color": "#05689b",
+                    "width": 1
+                },
+                "inner-stroke": {
+                    "color": "#FFF",
+                    "width": 1,
+                    "blend-mode": "overlay",
+                    "alpha": 0.3
+                },
+                "drop-shadow": {
+                    "offset": {
+                        "x": 0,
+                        "y": 2
+                    },
+                    "blur": 0,
+                    "alpha": 0.3,
+                    "color": "#FFF"
+                },
+                "content-image": {
+                    "type": "path",
+                    "description": "M 0 6 L 6 6 6 12 12 0 0 6 Z",
+                    "color": "#FFF",
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 1
+                        },
+                        "blur": 0,
+                        "alpha": 0.35
+                    }
+                }
+            },
+            "selected-state": {
+                "content-string": "Katkesta",
+                "stretchable-edges": [
+                    4,
+                    0
+                ],
+                "content-shadow": {
+                    "color": "#000",
+                    "alpha": 0.35
+                },
+                "content-color": "#FFF",
+                "content-gradient-fill": {
+                    "gradient-colors": [
+                        "#D03333",
+                        "#FFF"
+                    ],
+                    "gradient-positions": [
+                        1,
+                        0
+                    ],
+                    "alpha": 0.25
+                },
+                "type": "rectangle",
+                "size": {
+                    "width": 9,
+                    "height": 40
+                },
+                "corner-radius": 3,
+                "color": "#c5cbd1",
+                "gradient-fill": {
+                    "gradient-colors": [
+                        "#911313",
+                        "#c72525"
+                    ],
+                    "gradient-positions": [
+                        1,
+                        0
+                    ]
+                },
+                "outer-stroke": {
+                    "color": "#4a0f0f",
+                    "width": 1
+                },
+                "inner-stroke": {
+                    "color": "#FFF",
+                    "width": 1,
+                    "blend-mode": "overlay",
+                    "alpha": 0.3
+                },
+                "drop-shadow": {
+                    "offset": {
+                        "x": 0,
+                        "y": 2
+                    },
+                    "blur": 0,
+                    "color": "#000",
+                    "alpha": 0.2
+                },
+                "content-image": {
+                    "type": "path",
+                    "description": "M 0 6 L 6 6 6 12 12 0 0 6 Z",
+                    "color": "#FFF",
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 0.5
+                        },
+                        "blur": 0.5,
+                        "color": "#FFF"
+                    },
+                    "inner-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 0.5
+                        },
+                        "color": "#000",
+                        "alpha": 0.36
+                    },
+                    "gradient-fill": {
+                        "gradient-colors": [
+                            "#d03333",
+                            "#FFF"
+                        ],
+                        "gradient-positions": [
+                            0,
+                            1
+                        ]
+                    }
+                }
+            },
+            "highlighted-selected-state": {
+                "content-string": "Katkesta",
+                "stretchable-edges": [
+                    4,
+                    0
+                ],
+                "content-shadow": {
+                    "color": "#000",
+                    "alpha": 0.35
+                },
+                "content-gradient-fill": {
+                    "gradient-colors": [
+                        "#d03333",
+                        "#FFF"
+                    ],
+                    "gradient-positions": [
+                        1,
+                        0
+                    ],
+                    "alpha": 0.25
+                },
+                "content-color": "#FFF",
+                "type": "rectangle",
+                "size": {
+                    "width": 9,
+                    "height": 40
+                },
+                "corner-radius": 3,
+                "color": "#c5cbd1",
+                "gradient-fill": {
+                    "gradient-colors": [
+                        "#c42323",
+                        "#f22222"
+                    ],
+                    "gradient-positions": [
+                        0,
+                        1
+                    ]
+                },
+                "outer-stroke": {
+                    "color": "#8c0d0d",
+                    "width": 1
+                },
+                "inner-stroke": {
+                    "color": "#FFF",
+                    "width": 1,
+                    "blend-mode": "overlay",
+                    "alpha": 0.3
+                },
+                "drop-shadow": {
+                    "offset": {
+                        "x": 0,
+                        "y": 2
+                    },
+                    "blur": 0,
+                    "color": "#FFF",
+                    "alpha": 0.3
+                },
+                "content-image": {
+                    "type": "path",
+                    "description": "M 0 6 L 6 6 6 12 12 0 0 6 Z",
+                    "color": "#FFF",
+                    "drop-shadow": {
+                        "offset": {
+                            "x": 0,
+                            "y": 1
+                        },
+                        "blur": 0,
+                        "alpha": 0.35
+                    }
+                }
+            },
+            "disabled-state": {
+                "content-color": "#9399a0"
+            }
+        }
+    ]
+}
