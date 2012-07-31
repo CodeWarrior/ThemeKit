@@ -45,15 +45,15 @@
 		8E961FAE15A07EB70075E142 /* en */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = en; path = en.lproj/TKDDetailViewController.xib; sourceTree = "<group>"; };
 		8E961FC815A081DE0075E142 /* checkerboard.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = checkerboard.json; sourceTree = "<group>"; };
 		8E961FD315A086FB0075E142 /* Examples */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Examples; sourceTree = "<group>"; };
-		8E961FFC15A17C6D0075E142 /* ThemeKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ThemeKit.h; path = ../../ThemeKit/ThemeKit.h; sourceTree = "<group>"; };
-		8E961FFD15A17C6D0075E142 /* ThemeKit.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ThemeKit.m; path = ../../ThemeKit/ThemeKit.m; sourceTree = "<group>"; };
-		8E961FFE15A17C6D0075E142 /* TKConstants.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKConstants.h; path = ../../ThemeKit/TKConstants.h; sourceTree = "<group>"; };
-		8E961FFF15A17C6D0075E142 /* TKHelpers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKHelpers.h; path = ../../ThemeKit/TKHelpers.h; sourceTree = "<group>"; };
-		8E96200015A17C6D0075E142 /* TKHelpers.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKHelpers.m; path = ../../ThemeKit/TKHelpers.m; sourceTree = "<group>"; };
-		8E96200115A17C6D0075E142 /* TKPathCommand.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKPathCommand.h; path = ../../ThemeKit/TKPathCommand.h; sourceTree = "<group>"; };
-		8E96200215A17C6D0075E142 /* TKPathCommand.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKPathCommand.m; path = ../../ThemeKit/TKPathCommand.m; sourceTree = "<group>"; };
-		8E96200315A17C6D0075E142 /* TKView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKView.h; path = ../../ThemeKit/TKView.h; sourceTree = "<group>"; };
-		8E96200415A17C6D0075E142 /* TKView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKView.m; path = ../../ThemeKit/TKView.m; sourceTree = "<group>"; };
+		8E961FFC15A17C6D0075E142 /* ThemeKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ThemeKit.h; path = ../../ThemeKit.h; sourceTree = "<group>"; };
+		8E961FFD15A17C6D0075E142 /* ThemeKit.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ThemeKit.m; path = ../../ThemeKit.m; sourceTree = "<group>"; };
+		8E961FFE15A17C6D0075E142 /* TKConstants.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKConstants.h; path = ../../TKConstants.h; sourceTree = "<group>"; };
+		8E961FFF15A17C6D0075E142 /* TKHelpers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKHelpers.h; path = ../../TKHelpers.h; sourceTree = "<group>"; };
+		8E96200015A17C6D0075E142 /* TKHelpers.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKHelpers.m; path = ../../TKHelpers.m; sourceTree = "<group>"; };
+		8E96200115A17C6D0075E142 /* TKPathCommand.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKPathCommand.h; path = ../../TKPathCommand.h; sourceTree = "<group>"; };
+		8E96200215A17C6D0075E142 /* TKPathCommand.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKPathCommand.m; path = ../../TKPathCommand.m; sourceTree = "<group>"; };
+		8E96200315A17C6D0075E142 /* TKView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TKView.h; path = ../../TKView.h; sourceTree = "<group>"; };
+		8E96200415A17C6D0075E142 /* TKView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TKView.m; path = ../../TKView.m; sourceTree = "<group>"; };
 		8E96200615A17C8C0075E142 /* JSONKit.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JSONKit.m; sourceTree = "<group>"; };
 		8E96200715A17C8C0075E142 /* JSONKit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSONKit.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
